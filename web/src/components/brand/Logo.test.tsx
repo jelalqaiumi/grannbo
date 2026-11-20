@@ -1,5 +1,5 @@
-import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
 import faviconSvg from '../../../public/favicon.svg?raw';
 import { Logo, type LogoProps } from './Logo';
 
@@ -20,9 +20,6 @@ const GEOMETRY_ATTRIBUTES = [
   'd',
   'points',
 ];
-
-// Vitest körs utan globals, så Testing Library städar inte själv mellan testen.
-afterEach(cleanup);
 
 function shapes(svg: Element): Element[] {
   return [...svg.children].filter((child) => child.tagName !== 'title');
