@@ -87,20 +87,22 @@ Faserna 2-6 får egna avsnitt först när de planeras.
 │  ├─ e2e/
 │  │  └─ responsive.spec.ts    375/768/1440 px (1.22)
 │  ├─ tests/                   Repo-nivåtester som läser filer (miljö per fil, se reglerna nedan)
-│  │  ├─ support/contrast.ts
+│  │  ├─ support/contrast.ts          (1.7) Kontrastberäkning och tolkning av tokens.css (4.2)
+│  │  ├─ support/contrast.test.ts     (1.7, node) Egna tester för contrast.ts (4.2)
 │  │  ├─ support/contentGuard.ts
 │  │  ├─ tokens-contrast.test.ts      (1.7, node)
+│  │  ├─ fonts-local.test.ts          (1.7, node) Spärren mot externa typsnittsvärdar (4.3)
 │  │  ├─ logo-colors.test.ts          (1.8, node: bara filinnehåll, ingen rendering)
 │  │  ├─ media-files.test.ts          (1.12, utökas i 1.14 och 1.21, node)
 │  │  ├─ media-credits.test.ts        (1.20, node)
 │  │  ├─ seo-meta.test.ts             (1.21, jsdom: tolkar index.html med DOMParser)
 │  │  └─ content-guard.test.ts        (1.21, node)
 │  └─ src/
-│     ├─ main.tsx              Monterar <App/>, importerar styles/index.css
+│     ├─ main.tsx              Monterar <App/>, importerar typsnitten och styles/index.css (innehåll i 4.6)
 │     ├─ App.tsx               RouterProvider med routerna i avsnitt 5.6
 │     ├─ styles/
-│     │  ├─ index.css          @import 'tailwindcss'; tokens; typsnitt; bas-stilar
-│     │  └─ tokens.css         @theme-blocket: ALLA design tokens (avsnitt 4)
+│     │  ├─ index.css          Importerar tailwindcss och tokens.css, bas-stil för body (innehåll i 4.6)
+│     │  └─ tokens.css         @theme-blocket: ALLA design tokens (avsnitt 4, innehåll i 4.6)
 │     ├─ lib/
 │     │  └─ cn.ts              Slår ihop klassnamn (ersätter clsx)
 │     ├─ test/
@@ -150,7 +152,8 @@ Regler för strukturen:
 - Tester som läser filer från disk ligger i `web/tests/`. Undantag: ett
   komponenttest som behöver en fils innehåll läser den med Vites `?raw`-import
   (inte `node:fs`) och ligger då intill komponenten i jsdom-miljön; i Fas 1
-  gäller det bara `Logo.test.tsx` (4.5). Kommentaren
+  gäller det bara `Logo.test.tsx` (4.5). En testhjälpare i `web/tests/support/`
+  har sin testfil bredvid sig (`contrast.ts` + `contrast.test.ts`). Kommentaren
   `// @vitest-environment node` får bara stå överst i en testfil som varken
   renderar en komponent eller använder DOM-API:er; miljön per fil står i
   trädet ovan. Ett test som renderar en komponent är en `.tsx`-fil i
@@ -271,10 +274,14 @@ sig självt).
 
 ### 3.2 Tokenfilen
 
-`web/src/styles/tokens.css` innehåller ett `@theme`-block. Färger skrivs bara som
-`--color-<namn>: #RRGGBB;` eller, för overlay, `--color-<namn>: rgb(R G B / A);`
-med heltal och en decimal för A. Testet i 1.7 tolkar exakt de formerna och
-faller på varje annan form av en `--color-`-rad.
+`web/src/styles/tokens.css` innehåller ett `@theme`-block (ordagrant i 4.6).
+Färger skrivs bara som `--color-<namn>: #RRGGBB;` (sex hexsiffror; filen
+använder gemener) eller, för overlay, `--color-<namn>: rgb(R G B / A);` med
+heltal 0-255 för R, G och B och för A `0`, `1` eller `0.` följt av en eller två
+siffror. Den enda andra `--color-`-raden som får finnas är nollställningen
+`--color-*: initial;`, exakt en gång och före alla färgtokens. Testet i 1.7
+tolkar filen med `readColorTokens` (4.2), som kastar på varje annan rad som
+innehåller `--color-`; reglerna och felen står i feltabellen i 4.2.
 
 ### 3.3 Miljövariabler (`.env.example` i roten)
 
@@ -295,8 +302,9 @@ och i `.env.example`; en ny variabel läggs till här först.
 
 ### 4.1 Färger (`--color-*`)
 
-Standardpaletten nollställs med `--color-*: initial;` först i `@theme`, så att
-bara tokens nedan finns som färgklasser.
+Standardpaletten nollställs med `--color-*: initial;` som första rad i
+`@theme` (4.6), så att bara tokens nedan finns som färgklasser. Testet kräver
+raden exakt en gång och före alla färgtokens (C7 och C9 i 4.2).
 
 Basvärdena är uppmätta i logotypens PNG (pixelräkning av koordinatorn, A1):
 nattblå `#1B2A41`, orange `#E38B5C`, neutral ljus `#C9D2DE`, bakgrund
@@ -393,39 +401,175 @@ Icke-text (WCAG 1.4.11), krav ≥ 3:1:
 | N4 | accent-500 | primary-900 | Fokusring på mörk botten (footer) |
 | N5 | white | `overlay` komponerad över `#FFFFFF` | Fokusring och knappkant i heron |
 
-Testet faller också om en token som paret namnger saknas i `tokens.css`, och
-`web/tests/support/contrast.ts` har egna tester: svart mot vitt ger exakt 21,
-samma färg mot sig själv ger exakt 1.
+**`web/tests/tokens-contrast.test.ts`** (`// @vitest-environment node`) läser
+`tokens.css` med `readFileSync(new URL('../src/styles/tokens.css', import.meta.url), 'utf8')`
+och tolkar den med `readColorTokens`. Paren står som litteraler i testfilen
+(id, förgrund, bakgrund, gräns). För varje par kräver testet först
+`expect(tokens.has(<namn>)).toBe(true)` för båda namnen, så att testet faller om
+en token som paret namnger saknas. Färger tolkas med `parseHex`, utom i T18 och
+N5, där bakgrunden är `composite(parseRgba(tokens.get('overlay')), parseHex('#FFFFFF'))`.
 
 ```ts
 // web/tests/support/contrast.ts
-export type Rgb = { r: number; g: number; b: number };        // 0-255
-export function parseHex(hex: string): Rgb;                    // '#RRGGBB', kastar annars
-export function parseRgba(value: string): Rgb & { a: number }; // 'rgb(R G B / A)', kastar annars
-export function composite(top: Rgb & { a: number }, bottom: Rgb): Rgb;
-export function relativeLuminance(color: Rgb): number;
-export function contrastRatio(a: Rgb, b: Rgb): number;
-export function readColorTokens(cssText: string): Map<string, string>; // 'primary-900' -> '#1B2A41'
+export type Rgb = { r: number; g: number; b: number };        // heltal 0-255
+export function parseHex(hex: string): Rgb;                    // '#RRGGBB' (versaler eller gemener), kastar annars (C1)
+export function parseRgba(value: string): Rgb & { a: number }; // 'rgb(R G B / A)', kastar annars (C2, C3)
+export function composite(top: Rgb & { a: number }, bottom: Rgb): Rgb; // avrundar varje kanal (C4, C5)
+export function relativeLuminance(color: Rgb): number;         // (C4)
+export function contrastRatio(a: Rgb, b: Rgb): number;         // (C4 via relativeLuminance)
+export function readColorTokens(cssText: string): Map<string, string>; // 'primary-900' -> '#1b2a41' (C1-C3, C6-C9)
 ```
+
+Inga andra exporter. Alla fel kastas som `Error` (samma feltyp i hela
+modulen) med meddelandet ordagrant enligt tabellen; `${x}` är en
+mallsträngsinterpolation av värdet, och citattecknen är raka ASCII-`"`.
+
+| Id | Funktion | Villkor | `Error.message`, ordagrant |
+|----|----------|---------|----------------------------|
+| C1 | `parseHex` | `hex` matchar inte `/^#[0-9A-Fa-f]{6}$/` | `` `Ogiltig hexfärg "${hex}". Formen ska vara #RRGGBB.` `` |
+| C2 | `parseRgba` | `value` matchar inte `/^rgb\((\d{1,3}) (\d{1,3}) (\d{1,3}) \/ (0\|1\|0\.\d{1,2})\)$/` | `` `Ogiltig rgb-färg "${value}". Formen ska vara rgb(R G B / A).` `` |
+| C3 | `parseRgba` | formen stämmer, men R, G eller B tolkat med `Number` är större än 255 | `` `Ogiltig rgb-färg "${value}". R, G och B ska vara heltal mellan 0 och 255.` `` |
+| C4 | `composite` (för `top`, sedan `bottom`), `relativeLuminance` (och därmed `contrastRatio`, för `a`, sedan `b`) | någon av `r`, `g`, `b` är inte `Number.isInteger`, är `< 0` eller `> 255` | `` `Ogiltig färg ${JSON.stringify(color)}. R, G och B ska vara heltal mellan 0 och 255.` `` där `color` är argumentet som det skickades in |
+| C5 | `composite` | `!(top.a >= 0 && top.a <= 1)` (fångar även `NaN`) | `` `Ogiltig alfa ${top.a}. A ska vara ett tal mellan 0 och 1.` `` |
+| C6 | `readColorTokens` | en rad som innehåller `--color-`, inte är nollställningsraden och inte matchar `/^--color-([a-z0-9]+(?:-[a-z0-9]+)*): (#[^;]*\|rgb\([^;]*);$/` | `` `Ogiltig färgrad ${n} i tokenfilen: "${line}". Formen ska vara --color-<namn>: #RRGGBB; eller --color-<namn>: rgb(R G B / A);` `` |
+| C7 | `readColorTokens` | nollställningsraden `--color-*: initial;` när nollställningen eller någon färgtoken redan har lästs | `` `Raden "--color-*: initial;" på rad ${n} ska stå exakt en gång och före alla färgtokens.` `` |
+| C8 | `readColorTokens` | en giltig färgrad vars namn redan finns i resultatet (dubblerad token) | `` `Färgtoken "${name}" finns redan; dubblett på rad ${n}.` `` |
+| C9 | `readColorTokens` | alla rader är lästa och nollställningsraden har inte förekommit (även tom text) | `` `Tokenfilen saknar raden "--color-*: initial;".` `` |
+
+(`\|` i C2 och C6 är tabellens escape för `|`; i koden står `|`.) C3 behöver
+ingen kontroll av A: mönstret i C2 släpper bara igenom `0`, `1` och `0.d`/`0.dd`,
+så en intervallkontroll av A i `parseRgba` vore en gren som ingen indata når.
+
+**`readColorTokens`, exakt regel.** `cssText` delas på `'\n'`, och varje rad
+trimmas med `trim()` (det tar också bort `\r`). `n` är radens nummer räknat
+från 1, `line` den trimmade raden. Raderna gås igenom i ordning:
+
+1. Rad som inte innehåller `--color-`: hoppas över (t.ex. `@theme {`,
+   `--font-body: …`, skuggorna).
+2. Rad som är exakt `--color-*: initial;`: C7 om nollställningen eller någon
+   färgtoken redan har lästs, annars noteras att nollställningen finns. Raden
+   ger ingen post i resultatet. Varje annan stavning (`--color-*:initial;`,
+   `--color-*: initial !important;`) går vidare till steg 3 och ger C6.
+3. Övriga rader: C6 om mönstret i C6 inte matchar. Annars tolkas värdet
+   (andra gruppen) med `parseHex` om det börjar med `#`, annars med
+   `parseRgba`; deras fel (C1-C3) släpps igenom oförändrade, utan omslag.
+   Därefter C8 om namnet redan finns. Annars läggs `namn -> värde` till, med
+   värdet som det står i filen (t.ex. `'#1b2a41'`, `'rgb(27 42 65 / 0.7)'`).
+4. Efter sista raden: C9 om nollställningen inte har förekommit.
+
+En ogiltig rad hoppas alltså **aldrig** över; funktionen kastar på första
+felet. En dubblerad token kastar C8 på den andra förekomsten, även om båda har
+samma värde. Kontrollordningen per rad är C7, C6, C1-C3, C8: en dubblett med
+ogiltigt värde ger värdets fel, inte C8.
+
+**Det `readColorTokens` inte fångar:** en färgtoken som deklareras i en annan
+fil än `tokens.css` (t.ex. ett `@theme` i `index.css`; 4.6 tillåter inget
+sådant); en egenskap med annat skiftläge (`--COLOR-x`) eller CSS-escape
+(`--\63olor-x`); värden som tolkas rätt men är fel färg. Den fångar för mycket
+i ett fall: en kommentar som innehåller `--color-` ger C6.
+
+**`composite`, exakt regel.** Kontrollordning: C4 för `top`, C5, C4 för
+`bottom`. Varje kanal är `Math.round(top.c * top.a + bottom.c * (1 - top.a))`,
+så resultatet är alltid ett giltigt `Rgb` med heltal (den färg skärmen visar).
+`overlay` över `#FFFFFF` ger `{ r: 95, g: 106, b: 122 }`
+(27·0,7+255·0,3 = 95,4; 42·0,7+255·0,3 = 105,9; 65·0,7+255·0,3 = 122,0).
+T18 och N5 räknas på den avrundade färgen och kräver ≥ 4,5 respektive ≥ 3;
+testet asserterar inte kvoten exakt utan skriver ut den med sex decimaler.
+Med oavrundad komposition gav T18 5.483893 (byggarens körning i en kopia,
+1.7-förstudien 2026-11-20); kvoten med avrundad komposition redovisas i 1.7.
+
+**`relativeLuminance` och `contrastRatio`.** Kanal `c/255`; `≤ 0,04045` ger
+`c/12,92`, annars `((c + 0,055)/1,055) ** 2,4`; `L = 0,2126 R + 0,7152 G + 0,0722 B`.
+`contrastRatio` = `(max(L1, L2) + 0,05) / (min(L1, L2) + 0,05)`.
+
+**`web/tests/support/contrast.test.ts`** (`// @vitest-environment node`, fångas
+av Vitests `include` `tests/**/*.test.ts` och av `tsconfig.test.json`). Varje
+undantagstest asserterar hela meddelandet som litteral
+med `toThrow(new Error('<hela texten>'))`. Testfall:
+
+- `parseHex`: `'#1B2A41'` och `'#1b2a41'` ger båda `{ r: 27, g: 42, b: 65 }`;
+  C1 för `'#1B2A4'`, `'#1B2A411'`, `'1B2A41'`, `'#1B2A4G'`, `' #1B2A41'`.
+- `parseRgba`: `'rgb(27 42 65 / 0.7)'` ger `{ r: 27, g: 42, b: 65, a: 0.7 }`;
+  `'/ 0.85'`, `'/ 0'` och `'/ 1'` godtas; `'rgb(255 255 255 / 1)'` godtas;
+  C3 för `256` i R, i G och i B (ett fall per kanal); C2 för
+  `'rgb(27, 42, 65, 0.7)'`, `'rgba(27 42 65 / 0.7)'`, `'rgb(27 42 65 / 1.0)'`,
+  `'rgb(27 42 65 / 0.855)'`, `'rgb(27 42 65)'`.
+- `composite`: `overlay` över vitt ger `{ r: 95, g: 106, b: 122 }`; `a: 0` ger
+  `bottom`; `a: 1` ger `top`; C5 för `a` = `-0.01`, `1.01` och `NaN`, och
+  inget fel för `0` och `1`; C4 för `top` med `r: 256`, för `bottom` med
+  `g: -1` och för `top` med `b: 1.5`.
+- `relativeLuminance`: svart ger `0`; `{255,0,0}`, `{0,255,0}`, `{0,0,255}` ger
+  `toBeCloseTo` `0.2126`, `0.7152`, `0.0722` (12 decimaler); gränsen 0,04045
+  ligger mellan heltalskanalerna 10 och 11 (10/255 = 0,0392, 11/255 = 0,0431;
+  inget heltal ligger precis på den), så `{10,10,10}` jämförs med litteralen
+  `10 / 255 / 12.92` och `{11,11,11}` med `((11 / 255 + 0.055) / 1.055) ** 2.4`
+  (`toBeCloseTo`, 12 decimaler); C4 för `256`, `-1` och `1.5` i var sin kanal (r, g, b).
+- `contrastRatio`: svart mot vitt `toBeCloseTo(21, 10)` (det oavrundade värdet
+  redovisas i 1.7; ingen exakthet påstås här), samma färg mot sig själv
+  `toBe(1)`, `contrastRatio(a, b)` lika med `contrastRatio(b, a)` för
+  `#1B2A41`/`#F4F6F9`, och C4 för andra argumentet.
+- `readColorTokens`: en text med nollställningen, en hex-rad, en rgb-rad och en
+  `--font-`-rad ger exakt de två färgposterna i ordning; samma text med `\r\n`
+  ger samma resultat; C6 för `--color-x: red;`, `--color-x: #1b2a41`
+  (semikolon saknas), `--color-x: #1b2a41; --color-y: #ffffff;`,
+  `--color-X: #1b2a41;`, `--color-*:initial;`; C1 och C2 genom
+  `--color-x: #1b2a4;` respektive `--color-x: rgb(1, 2, 3);`; C7 när
+  nollställningen står efter en färgtoken och när den står två gånger; C8 för
+  en dubblett med samma värde och med annat värde; dubblett med ogiltigt
+  värde ger C1, inte C8; C9 för tom text och för en text med bara färgtokens.
 
 ### 4.3 Typsnitt (`--font-*`, nollställs med `--font-*: initial;`)
 
 | Token | Värde | Användning |
 |-------|-------|------------|
-| `--font-heading` | `"Fraunces Variable", ui-serif, Georgia, serif` | h1-h3, logotypens ordmärke, prisnivåer |
-| `--font-body` | `"Inter Variable", ui-sans-serif, system-ui, sans-serif` | All annan text |
+| `--font-heading` | `'Fraunces Variable', ui-serif, Georgia, serif` | h1-h3, logotypens ordmärke, prisnivåer |
+| `--font-body` | `'Inter Variable', ui-sans-serif, system-ui, sans-serif` | All annan text |
 
-- I `main.tsx`: `import '@fontsource-variable/fraunces';` och
-  `import '@fontsource-variable/inter';`. Inga egna `@font-face` och inga
-  typsnittsfiler i `src/`.
+(Enkla citattecken, eftersom `.prettierrc.json` har `singleQuote` och det
+gäller CSS, 5.1.)
+
+- Paketen installeras i 1.7 som `dependencies` (de buntas in i appen) med
+  `--save-exact`. I `main.tsx` importeras
+  `@fontsource-variable/fraunces/index.css` och
+  `@fontsource-variable/inter/index.css` (filen ordagrant i 4.6). Sökvägen
+  slutar på `.css`, så att importen matchar deklarationen `*.css` i
+  `vite/client`-typerna och `tsc -b` inte behöver hitta typer för ett paket
+  som bara innehåller CSS. Byggaren läser `exports` i paketens `package.json`
+  i 1.7 och redovisar att `./index.css` (direkt eller via ett mönster) är
+  exporterad; är den inte det lämnas det tillbaka till arkitekten. Inga egna
+  `@font-face` och inga typsnittsfiler i `src/`.
 - Typsnittsnamnen ovan (`Fraunces Variable`, `Inter Variable`) ska stämma med
   `font-family` i paketens CSS. Byggaren kontrollerar det i
   `node_modules/@fontsource-variable/*/index.css` i 1.7 och redovisar raden.
-  Skiljer de sig lämnas det tillbaka till arkitekten.
-- Inga `<link>` till externa typsnittsvärdar. Testet i 1.7 söker i `index.html`
-  och `src/**/*.css` efter `fonts.googleapis` och `fonts.gstatic`
-  (skiftlägesokänsligt) och kräver noll träffar.
-- Typsnittens licens står under rubriken `## Typsnitt` i `docs/media-credits.md`.
+  Skiljer de sig lämnas det tillbaka till arkitekten. (I 1.7-förstudien
+  2026-11-20 gav paketen 5.3.0 `'Fraunces Variable'` respektive
+  `'Inter Variable'`, se avsnitt 12.)
+- Inga `<link>` till externa typsnittsvärdar. Spärren ligger i
+  **`web/tests/fonts-local.test.ts`** (`// @vitest-environment node`). Den
+  läser `index.html` och varje `.css`-fil under `src/`, vald rekursivt med
+  `readdirSync(dir, { withFileTypes: true })` där bara poster med
+  `isDirectory()` gås in i (symboliska länkar följs inte). Sökvägar byggs från
+  `new URL('..', import.meta.url)` (katalogen `web/`). Den söker med
+  `/fonts\.googleapis|fonts\.gstatic/i` och kräver
+  `expect(hits).toEqual([])`, där varje träff är `'<sökväg relativt web/, med />: <träff>'`.
+  För att en tom genomgång inte ska bli grön kräver testet också att listan
+  över lästa filer innehåller `src/styles/index.css` och `src/styles/tokens.css`.
+  Mutationer i kopian `.scratch/tc` (5.1, "Beviset i 1.7"), en i taget och
+  borttagen före nästa; var och en ska ge EXIT≠0 i K11
+  (`(cd .scratch/tc && timeout 900 npm test)`) med `fonts-local.test.ts` som
+  enda fallerade testfil:
+  `@import url('https://fonts.googleapis.com/css2?family=Inter');` först i
+  `src/styles/index.css`; en ny fil `src/styles/probe/deep.css` med
+  `/* FONTS.GSTATIC.COM */`; raden
+  `<link rel="stylesheet" href="https://Fonts.Googleapis.com/css2">` i `index.html`.
+  **Det spärren inte fångar:** andra typsnittsvärdar (t.ex. Typekit, Bunny
+  Fonts); en extern URL i en `.ts`/`.tsx`-fil eller i `public/`; CSS-escapes
+  eller procentkodning av värdnamnet (`fonts\2e googleapis`,
+  `fonts%2Egoogleapis`). Den fångar för mycket i ett fall: värdnamnet i en
+  kommentar ger också träff.
+- Typsnittens licens står under rubriken `## Typsnitt` i `docs/media-credits.md`,
+  som skapas i 1.20 (format i avsnitt 8). I 1.7 redovisar byggaren bara
+  `license` ur paketens `package.json`.
 
 Rubrikskala (Tailwinds standardstorlekar, mobil först):
 
@@ -499,7 +643,8 @@ export function Logo(props: LogoProps): JSX.Element;
 - Tester:
   - `web/tests/logo-colors.test.ts` (`// @vitest-environment node`, läser bara
     filer): varje hex-värde i `public/favicon.svg` finns bland färgtokens i
-    `tokens.css`; `src/components/brand/Logo.tsx` innehåller ingen hex-färg.
+    `tokens.css` (jämfört som `parseHex`-värden, eftersom `tokens.css` skriver
+    hex med gemener, 4.6); `src/components/brand/Logo.tsx` innehåller ingen hex-färg.
   - `web/src/components/brand/Logo.test.tsx` (jsdom). Testet läser
     `favicon.svg` med Vites `?raw`-import
     (`import faviconSvg from '../../../public/favicon.svg?raw'`), inte med
@@ -522,6 +667,92 @@ export function Logo(props: LogoProps): JSX.Element;
   kontrolleras i `Logo.test.tsx`. Färgkontroll:
   hex-värdet för varje färgyta i PNG:n (rutor, hus, ljus ruta, ringar,
   ordmärke) jämförs med token-värdet, och avvikelserna redovisas.
+
+### 4.6 Filerna som 1.7 skapar eller ändrar i `web/src/` (ordagrant)
+
+`web/src/styles/tokens.css` (ny), hela innehållet ordagrant. Hex skrivs med
+gemener; värdena är desamma som i tabellen i 4.1. Inga andra filer får
+innehålla `@theme`.
+
+```css
+@theme {
+  --color-*: initial;
+  --color-primary-900: #1b2a41;
+  --color-primary-800: #273a58;
+  --color-primary-100: #e2e7ef;
+  --color-accent-500: #e38b5c;
+  --color-accent-700: #9a4a28;
+  --color-accent-100: #fbeae0;
+  --color-neutral-50: #f4f6f9;
+  --color-neutral-300: #c9d2de;
+  --color-neutral-500: #7a8399;
+  --color-neutral-600: #475569;
+  --color-white: #ffffff;
+  --color-success-700: #2e6b3f;
+  --color-success-100: #e3f1e6;
+  --color-danger-700: #b3261e;
+  --color-danger-100: #fbe4e2;
+  --color-overlay: rgb(27 42 65 / 0.7);
+  --color-overlay-strong: rgb(27 42 65 / 0.85);
+
+  --font-*: initial;
+  --font-heading: 'Fraunces Variable', ui-serif, Georgia, serif;
+  --font-body: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+
+  --container-content: 72rem;
+
+  --radius-*: initial;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+
+  --shadow-*: initial;
+  --shadow-sm: 0 1px 2px rgb(27 42 65 / 0.06);
+  --shadow-md: 0 4px 16px -4px rgb(27 42 65 / 0.12);
+  --shadow-lg: 0 16px 40px -12px rgb(27 42 65 / 0.2);
+}
+```
+
+`web/src/styles/index.css` (ändrad), hela innehållet ordagrant:
+
+```css
+@import 'tailwindcss';
+@import './tokens.css';
+
+@layer base {
+  body {
+    @apply bg-neutral-50 font-body text-primary-900;
+  }
+}
+```
+
+Bas-stilen på `body` är den enda: sidans bakgrund (`neutral-50`), brödtextens
+typsnitt (`font-body`) och textfärg (`primary-900`, par T1) gäller då från
+start och ärvs av allt. Rubrikernas `font-heading` sätts per element med
+klasserna i 4.3, inte i bas-stilen.
+
+`web/src/main.tsx` (ändrad), hela innehållet ordagrant:
+
+```tsx
+import '@fontsource-variable/fraunces/index.css';
+import '@fontsource-variable/inter/index.css';
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import { App } from './App';
+import './styles/index.css';
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+);
+```
+
+Ger K9 (`format:check`) avvikelse i någon av de tre filerna ändras inte
+innehållet för hand och inte med K26; det lämnas tillbaka till arkitekten med
+Prettiers utdata. Samma gäller om K10 inte klarar `@import './tokens.css'`
+eller typsnittsimporterna.
 
 ## 5. Gränssnitt
 
@@ -607,8 +838,8 @@ finns i 1.5.
 
 - `web/.prettierrc.json`: `{ "singleQuote": true }`. Inställningen gäller även
   CSS, så CSS-importer skrivs med enkla citattecken.
-- `web/src/styles/index.css`: `@import 'tailwindcss';` (tokens och typsnitt
-  läggs till i 1.7).
+- `web/src/styles/index.css`: `@import 'tailwindcss';` (1.7 ger filen det
+  slutliga innehållet i 4.6).
 - `web/src/test/setup.ts`: bara raden `import '@testing-library/jest-dom/vitest';`.
   Stubbar för `matchMedia` och `IntersectionObserver` läggs inte här, utan i
   varje testfil som behöver dem, med start i den uppgift som först behöver dem
@@ -622,6 +853,7 @@ finns i 1.5.
   (preload) och 1.21 (resten).
 - `web/src/main.tsx`: renderar `<App />` inom `StrictMode` med `createRoot`,
   importerar `./styles/index.css` och `{ App }` från `./App` utan filändelse.
+  1.7 lägger till typsnittsimporterna; det slutliga innehållet står i 4.6.
 - `tsconfig.json`, `tsconfig.app.json`, `tsconfig.node.json`: de tre filerna
   från create-vite 9.3.4 (mallen `react-ts`). Oxlint och `.oxlintrc.json` från
   mallen tas bort och ersätts av ESLint. Alternativ som TypeScript 6.0.3 inte
@@ -766,10 +998,13 @@ bara `include`):
 importerar en modul i `src/` drar in den modulens importer (`.tsx`, `?raw`).
 `playwright.config.ts` och `e2e/` skapas i 1.22; `include` är ett
 mönster, och en post som inte matchar något är inget fel så länge projektet har
-minst en annan indatafil (ej körd: prövas av K10 och K27 i 1.7).
-`tsconfig.test.json` checkas in i samma commit som den första filen i
-`tests/`, eftersom ett projekt helt utan indatafiler kan ge TS18003 ("No inputs
-were found") i `tsc -b` (ej körd).
+minst en annan indatafil. `tsconfig.test.json` checkas in i samma commit som
+den första filen i `tests/`, eftersom ett projekt helt utan indatafiler ger
+TS18003. Belägg (byggarens körning i en kopia, 1.7-förstudien 2026-11-20):
+utan filer i `tests/` gav `tsc -b`
+`error TS18003: No inputs were found in config file '.../tsconfig.test.json'`
+och EXIT=2; en `include`-post utan träff, med andra indatafiler i projektet,
+gav EXIT=0.
 
 `web/eslint.config.js`, hela innehållet ordagrant (ändringen mot 1.5 är det
 andra konfigurationsobjektet med `files: ['**/*.{js,mjs}']`):
@@ -847,6 +1082,9 @@ körs i Node, därför `globals.node` och inte `globals.browser`.
   och kräv EXIT≠0, att utdatan innehåller `no-unused-vars` för `unusedProbe`
   och att den **inte** innehåller `no-undef` (Node-globalen `process` är känd).
   Redovisa utdatan och `EXIT=<kod>` ordagrant.
+- Spärren mot externa typsnittsvärdar. I samma kopia, efter att sonderna ovan
+  tagits bort: mutationerna i 4.3 (under `fonts-local.test.ts`), en i taget.
+  Redovisa per mutation sista raderna och `EXIT=<kod>` ordagrant.
 - Kopian `.scratch/tc` tas bort efteråt (`rm -rf .scratch/tc`).
 
 **Compose** (arbetskatalog roten, `.env` kopierad från `.env.example`):
@@ -1660,10 +1898,19 @@ måtten för `hero-poster.jpg` och `og-image.jpg` (läses ur JPEG:ens SOF-markö
 **`docs/media-credits.md`** (1.20) har avsnitten nedan. `## Media` är en tabell med
 kolumnerna `Fil | Ursprung | Upphov | Licens | Källa | Datum | Bearbetning`, en
 rad per fil, där `Fil` är sökvägen relativt `web/public` (t.ex.
-`media/hero-drone.webm`). `## Typsnitt` listar varje typsnitt med licens och
-källa. `media-credits.test.ts` jämför mängden `Fil`-värden med mängden filer
-under `web/public/media` (rekursivt) och kräver att de är lika, och att varje
-rad har icke-tomma `Ursprung`, `Licens` och `Datum`.
+`media/hero-drone.webm`). `## Typsnitt` är en tabell med kolumnerna
+`Typsnitt | Paket | Licens | Källa`, en rad per typsnittspaket:
+`Fraunces Variable | @fontsource-variable/fraunces | OFL-1.1 | https://www.npmjs.com/package/@fontsource-variable/fraunces`
+och
+`Inter Variable | @fontsource-variable/inter | OFL-1.1 | https://www.npmjs.com/package/@fontsource-variable/inter`
+(cellerna utan backticks, precis som de står här). Sektionen skrivs i 1.20, när filen skapas;
+licensen kontrollerades i 1.7 (4.3). `media-credits.test.ts` jämför mängden
+`Fil`-värden med mängden filer under `web/public/media` (rekursivt) och kräver
+att de är lika, och att varje rad har icke-tomma `Ursprung`, `Licens` och
+`Datum`. Den jämför också mängden `Paket`-värden under `## Typsnitt` med
+mängden nycklar i `dependencies` i `web/package.json` som börjar med
+`@fontsource-variable/`, kräver att de är lika, och att `Licens` på varje
+typsnittsrad är litteralen `OFL-1.1`.
 
 ## 9. Kvalitetsmätning (1.22, 1.23)
 
@@ -1797,9 +2044,9 @@ fil står under "Använder".
 | 1.2 | Avsnitt 10 och 3.3. | `.gitignore`, `.gitattributes`, `.env.example` | - |
 | 1.3 | Avsnitt 2 (.NET-raderna), 5.2, K3-K6. | allt under `api/` utom `Dockerfile` och `.dockerignore` | - |
 | 1.4 | Avsnitt 5.3, K14-K17. Får inte märkas klar förrän K14-K16 har körts; Docker Desktop installeras av användaren (A12). Finns Docker inte när 1.3 är klar blir 1.4 ett eget paket, P2b, och P3 får starta under tiden (`docs/plan.md`, "Arbetsgång"). | `api/Dockerfile`, `api/.dockerignore`, `docker-compose.yml` | `api/` (1.3), `.env.example` (1.2) |
-| 1.5 | Avsnitt 2 (webbraderna och versionslåsningarna D39-D41), 5.1 (K7-K11, ignoreringslistorna, "Skripten per uppgift", "Kontrollen av skripten i 1.5" med K24-K26, och "Innehåll som 1.5 skapar"), struktur i avsnitt 1. Första testet `src/App.test.tsx`: heading level 1 med namnet "Grannbo". Versioner och avvikelser från create-vite-mallens tsconfig redovisas. | `web/.nvmrc`, `package.json` (skripten `dev`, `build`, `preview`, `lint`, `format`, `format:check`, `test`), `package-lock.json`, `vite.config.ts`, `tsconfig.json`, `tsconfig.app.json`, `tsconfig.node.json`, `eslint.config.js`, `.prettierrc.json`, `.prettierignore`, `index.html` (`lang`, `charset`, `viewport`, `<title>`), `src/main.tsx` (slutlig form), `src/App.tsx`, `src/App.test.tsx`, `src/styles/index.css` (`@import 'tailwindcss';`), `src/test/setup.ts` (bara jest-dom) | - |
+| 1.5 | Avsnitt 2 (webbraderna och versionslåsningarna D39-D41), 5.1 (K7-K11, ignoreringslistorna, "Skripten per uppgift", "Kontrollen av skripten i 1.5" med K24-K26, och "Innehåll som 1.5 skapar"), struktur i avsnitt 1. Första testet `src/App.test.tsx`: heading level 1 med namnet "Grannbo". Versioner och avvikelser från create-vite-mallens tsconfig redovisas. | `web/.nvmrc`, `package.json` (skripten `dev`, `build`, `preview`, `lint`, `format`, `format:check`, `test`), `package-lock.json`, `vite.config.ts`, `tsconfig.json`, `tsconfig.app.json`, `tsconfig.node.json`, `eslint.config.js`, `.prettierrc.json`, `.prettierignore`, `index.html` (`lang`, `charset`, `viewport`, `<title>`), `src/main.tsx` (typsnittsimporterna läggs till i 1.7), `src/App.tsx`, `src/App.test.tsx`, `src/styles/index.css` (`@import 'tailwindcss';`), `src/test/setup.ts` (bara jest-dom) | - |
 | 1.6 | Avsnitt 5.4. Kräver push till remote `origin` (F4) och en grön körning av båda jobben på GitHub, med körningens resultat redovisat. | `.github/workflows/ci.yml` | `api/` (1.3), `web/` (1.5) |
-| 1.7 | Avsnitt 4.1-4.4, 4.2 (alla par T1-T19, N1-N5 och X1), K23. Typsnitt: Fraunces och Inter (F5). Avsnitt 5.1 "Typkontroll och lint av alla kataloger (1.7)": tsconfig-filerna och `eslint.config.js` får exakt det innehåll som står där, och `tsconfig.test.json` checkas in i samma commit som första filen i `tests/`. Klar när: K27 ger EXIT≠0 med `TS2322` för varje fall i tabellen (`src/`, `tests/`, `e2e/`, `vite.config.ts`, `playwright.config.ts`), K28 ger EXIT≠0 med `no-unused-vars` och utan `no-undef`, och därefter ger K8–K11 EXIT=0 i `web/`, med utdata inklistrad. | `src/styles/tokens.css`, `tests/support/contrast.ts`, `tests/tokens-contrast.test.ts`, `tsconfig.test.json`, paketen `@fontsource-variable/fraunces` och `@fontsource-variable/inter` | `index.css`, `main.tsx`, `tsconfig.json`, `tsconfig.node.json`, `eslint.config.js` (1.5) |
+| 1.7 | Avsnitt 4.1-4.4, 4.2 (alla par T1-T19, N1-N5 och X1, feltabellen C1-C9, `readColorTokens`, `composite` och `contrast.test.ts`), 4.3 (typsnitten och `fonts-local.test.ts`), 4.6 (`tokens.css`, `index.css` och `main.tsx` ordagrant), K23. Typsnitt: Fraunces och Inter (F5), som `dependencies`. Avsnitt 5.1 "Typkontroll och lint av alla kataloger (1.7)": tsconfig-filerna och `eslint.config.js` får exakt det innehåll som står där, och `tsconfig.test.json` checkas in i samma commit som första filen i `tests/`. Klar när: `tokens-contrast.test.ts` visar WCAG AA-kontrast för paren i 4.2 och X1 < 3; `contrast.test.ts` prövar varje rad C1-C9 med hela meddelandet; `fonts-local.test.ts` är grön och föll (EXIT≠0) för varje mutation i 4.3; paketens `font-family`, `license` och export av `./index.css` är redovisade (4.3); K27 ger EXIT≠0 med `TS2322` för varje fall i tabellen (`src/`, `tests/`, `e2e/`, `vite.config.ts`, `playwright.config.ts`), K28 ger EXIT≠0 med `no-unused-vars` och utan `no-undef`, och därefter ger K8–K11 EXIT=0 i `web/`, med utdata inklistrad. Commit gjord. | `src/styles/tokens.css`, `tests/support/contrast.ts`, `tests/support/contrast.test.ts`, `tests/tokens-contrast.test.ts`, `tests/fonts-local.test.ts`, `tsconfig.test.json`, paketen `@fontsource-variable/fraunces` och `@fontsource-variable/inter` | `index.css`, `main.tsx`, `tsconfig.json`, `tsconfig.node.json`, `eslint.config.js` (1.5) |
 | 1.8 | Avsnitt 4.5 (A3, A13). Favicon-raden i `index.html` (7.10). | `src/components/brand/Logo.tsx`, `Logo.test.tsx`, `tests/logo-colors.test.ts`, `public/favicon.svg`, `docs/brand/logo-source.pdf`, `docs/brand/logo-source.png`, paketet `@playwright/test` | `tokens.css` (1.7), `index.html` (1.5) |
 | 1.9 | Avsnitt 6.1, 6.2. `ButtonLink` med `to` renderar React Routers `<Link>`, så paketet installeras här, och testerna renderar i `MemoryRouter`. | `src/lib/cn.ts`, `ui/Button.tsx`, `ui/Input.tsx` (+ tester), `ui/index.ts`, paketet `react-router` | `tokens.css` (1.7) |
 | 1.10 | Avsnitt 6.3-6.6. | `ui/Card.tsx`, `ui/Badge.tsx`, `ui/Skeleton.tsx`, `ui/EmptyState.tsx` (+ tester) | `cn`, `ui/index.ts` (1.9) |
@@ -1813,7 +2060,7 @@ fil står under "Använder".
 | 1.17 | Avsnitt 7.6 (innehållet enligt F6). | `sections/Pricing.tsx` (+ test) | `LazySection` (1.13), `Card`, `Badge` (1.10), `ButtonLink` (1.9) |
 | 1.18 | Avsnitt 7.7. | `sections/Faq.tsx` (+ test) | `LazySection` (1.13), `Accordion` (1.11) |
 | 1.19 | Avsnitt 7.8, 7.9 (raden enligt F1, A6). Sidan `/integritet` och dess route skapas här. `SiteFooter` läggs till på alla sidor: på `/` i `<LazySection id="sidfot">`, på övriga direkt. | `components/layout/SiteFooter.tsx`, `features/legal/PrivacyPage.tsx` (+ tester) | `App.tsx` (1.5), `LandingPage`, `DemoPlaceholderPage`, `NotFoundPage` (1.5b), `LazySection` (1.13), `Logo` (1.8) |
-| 1.20 | Avsnitt 8 (`media-credits.md`). | `docs/media-credits.md`, `tests/media-credits.test.ts` | mediefilerna (1.12, 1.14) |
+| 1.20 | Avsnitt 8 (`media-credits.md`: `## Media` och `## Typsnitt`), 4.3 (licensen). Klar när: varje mediafil under `web/public/media` har en rad under `## Media` och varje rad har en fil; varje `@fontsource-variable/*`-paket i `dependencies` i `web/package.json` har en rad under `## Typsnitt` med licensen `OFL-1.1` och varje rad har ett paket; båda kontrolleras av `media-credits.test.ts`. Commit gjord. | `docs/media-credits.md`, `tests/media-credits.test.ts` | mediefilerna (1.12, 1.14), typsnittspaketen i `web/package.json` (1.7) |
 | 1.21 | Avsnitt 7.10, 7.11, avsnitt 8 för `og-image.jpg`; skriptet och `media-files.test.ts` utökas med den, och `media-credits.md` får dess rad. K22. | `public/robots.txt`, `media-src/og-image.svg`, `public/media/og-image.jpg`, `tests/seo-meta.test.ts`, `tests/support/contentGuard.ts`, `tests/content-guard.test.ts` | `index.html` (1.5), skriptet (1.12), `media-credits.md` (1.20), Playwright (1.8) |
 | 1.22 | Avsnitt 9.1, K12, K19. | `playwright.config.ts`, `e2e/responsive.spec.ts` | Playwright (1.8), alla sidor (1.5b-1.19) |
 | 1.23 | Avsnitt 9.2, K13, K19. | `scripts/lighthouse.mjs`, paketet `lighthouse` | produktionsbygget (1.5) |
@@ -1838,10 +2085,11 @@ fil står under "Använder".
 | K20 | `git check-ignore -v <fil>` per fil i avsnitt 10 | Körd av byggaren 2026-11-20 i 1.2 (P1, commit 6b6ecde). Alla 14 filer som ska ignoreras gav exit 0, bland dem `LARDOMAR.arkiv.md`, `PROMPT-grannbo.md` och `.claude/x`. `LARDOMAR.md` och `.env.example` gav exit 1. `git status --short --ignored` efter sista commit visade bara `!! LARDOMAR.arkiv.md` och `!! PROMPT-grannbo.md`. |
 | K21 | Längd och strömmar (från `web/`): `timeout 120 node -e "require('child_process').spawnSync(require('ffmpeg-static'),['-hide_banner','-i',process.argv[1],'-f','null','-'],{stdio:'inherit'})" public/media/hero-drone.<ext>` | Okörd. Körs i 1.12 för `webm` och `mp4`. Utdatan ska visa `Duration` mellan 10 och 20 s och ingen rad `Stream ... Audio`. (ffprobe ingår inte i `ffmpeg-static`.) |
 | K22 | `npm run media:placeholders` | Okörd. Körs i 1.12 (hero-filerna), 1.14 (lokalbilderna) och 1.21 (`og-image.jpg`). |
-| K23 | Kontrastkvoter för basfärgerna, WCAG-formeln i Node | Uträknade av koordinatorn 2026-11-20: `#E38B5C`/`#F4F6F9` = 2.39; `#E38B5C`/`#1B2A41` = 5.58; `#9A4A28`/`#F4F6F9` = 5.73; `#1B2A41`/`#F4F6F9` = 13.34; `#475569`/`#F4F6F9` = 7.00. Avrundade till två decimaler; ingen av dem ligger nära en gräns. Testet i 1.7 räknar om dem oavrundade (par X1, T19, T8, T1, T3). |
+| K23 | Kontrastkvoter för basfärgerna, WCAG-formeln i Node | Uträknade av koordinatorn 2026-11-20: `#E38B5C`/`#F4F6F9` = 2.39; `#E38B5C`/`#1B2A41` = 5.58; `#9A4A28`/`#F4F6F9` = 5.73; `#1B2A41`/`#F4F6F9` = 13.34; `#475569`/`#F4F6F9` = 7.00. Avrundade till två decimaler; ingen av dem ligger nära en gräns. Testet i 1.7 räknar om dem oavrundade (par X1, T19, T8, T1, T3). Byggarens körning i en kopia, 1.7-förstudien 2026-11-20, oavrundade: T1 13.339238, T7 5.579852, T8 5.731660, T18 5.483893 (oavrundad komposition; 4.2 föreskriver avrundad), N1 3.794712, N2 3.505020, X1 2.390608. |
 | K24-K26 | `dev`, `preview` och `format` med kontrollerna i 5.1 | Körda av byggaren 2026-11-20 i 1.5: K25 gav 200 och K26 EXIT=0. K24 gav 200 på port 5174 med `--strictPort`, eftersom 5173 var upptagen av en annan process; koordinatorn godtog det som belägg, och K24 skrivs sedan dess med `<ledig port>` (5.1). |
-| K27 | Typkontrollens täckning: sonden `export const typeErrProbe: number = 'text';` per fall i `.scratch/tc`, sedan `timeout 600 npm run build` (5.1, "Beviset i 1.7") | Okörd (arkitekten hade inget skal 2026-11-20). Körs i 1.7. Krav: EXIT≠0 och `TS2322` med filens sökväg för varje fall. Granskarens körning i P3 (före ändringen): sonden i `tests/typeerr.test.ts` gav EXIT=0 i K8, K10 och K11 (LARDOMAR.md, posten om P3). |
-| K28 | Lint av `.mjs`: `scripts/probe.mjs` i `.scratch/tc`, sedan `timeout 300 npm run lint` (5.1, "Beviset i 1.7") | Okörd (arkitekten hade inget skal 2026-11-20). Körs i 1.7. Krav: EXIT≠0, `no-unused-vars` i utdatan och inget `no-undef`. |
+| K27 | Typkontrollens täckning: sonden `export const typeErrProbe: number = 'text';` per fall i `.scratch/tc`, sedan `timeout 600 npm run build` (5.1, "Beviset i 1.7") | Körd av byggaren i en kopia i 1.7-förstudien 2026-11-20: EXIT=2 med `TS2322` för vart och ett av `src/`, `tests/`, `e2e/`, `vite.config.ts` och `playwright.config.ts`. Körs igen i 1.7 mot de incheckade filerna (Klar när). Krav: EXIT≠0 och `TS2322` med filens sökväg för varje fall. Granskarens körning i P3 (före ändringen): sonden i `tests/typeerr.test.ts` gav EXIT=0 i K8, K10 och K11 (LARDOMAR.md, posten om P3). |
+| K28 | Lint av `.mjs`: `scripts/probe.mjs` i `.scratch/tc`, sedan `timeout 300 npm run lint` (5.1, "Beviset i 1.7") | Körd av byggaren i en kopia i 1.7-förstudien 2026-11-20: EXIT=1 med `no-unused-vars` och 0 träffar på `no-undef`. Mutationen `globals: {}` gav `no-undef` för `console` och `process`, EXIT=1. Körs igen i 1.7 mot de incheckade filerna (Klar när). Krav: EXIT≠0, `no-unused-vars` i utdatan och inget `no-undef`. |
+| - | Typsnittspaketen | Kontrollerade av byggaren i en kopia i 1.7-förstudien 2026-11-20: `@fontsource-variable/fraunces` 5.3.0 och `@fontsource-variable/inter` 5.3.0, båda med licens `OFL-1.1` och `font-family` `'Fraunces Variable'` respektive `'Inter Variable'`. Alla `url()` i paketens CSS pekade på lokala `./files/*.woff2`; sökningen efter `http` gav 0 träffar. Export av `./index.css` ingick inte i förstudiens redovisning; den redovisas i 1.7 (4.3). |
 | - | Låsta webbversioner | Låsta av byggaren 2026-11-20 i 1.5 (`--save-exact`): react och react-dom 19.3.1, vite 8.3.8, @vitejs/plugin-react 6.3.0, typescript 6.0.3, tailwindcss och @tailwindcss/vite 4.3.5, eslint och @eslint/js 9.39.5, typescript-eslint 8.73.0, eslint-plugin-react-hooks 7.1.1, eslint-plugin-react-refresh 0.5.8, eslint-plugin-jsx-a11y 6.10.2, globals 17.14.0, eslint-config-prettier 10.1.8, prettier 3.10.1, vitest 5.1.1, jsdom 31.0.1, @testing-library/react 16.3.3, @testing-library/dom 10.4.2, @testing-library/user-event 14.6.13, @testing-library/jest-dom 8.0.0, @types/react och @types/react-dom 19.3.0, @types/node 24.19.2. |
 | - | Versionslåsningar | Kontrollerade av byggaren 2026-11-20 med `npm view` och provinstallation: ESLint 10 med `eslint-plugin-jsx-a11y` 6.10.2 gav ERESOLVE, EXIT=1 (D39); `typescript-eslint` 8.73.0 kräver TypeScript `>=4.8.4 <6.1.0` (D40). |
 | - | Docker | Koordinatorn 2026-11-20: inte installerat än. Användaren installerar Docker Desktop själv. Se K14-K17. |
@@ -2067,7 +2315,8 @@ Kvar är förutsättningar som inte är öppna frågor:
   (`DOMParser`, `page.evaluate`) som konfigurationsfilerna inte ska ha.
   Ändringen görs som tillägg i 1.7 och inte som en egen uppgift före 1.7: 1.7
   skapar de första filerna i `tests/`, och ett projekt helt utan indatafiler
-  kan ge TS18003 i `tsc -b` (ej körd). Beviset är K27 per katalog i en kopia.
+  ger TS18003 i `tsc -b` (EXIT=2 i byggarens körning i en kopia, 1.7-förstudien
+  2026-11-20, 5.1). Beviset är K27 per katalog i en kopia.
   Bortvalt: ett separat `typecheck`-skript (dubblerar `tsc -b` i K10);
   `vitest --typecheck` (täcker inte `e2e/` eller `playwright.config.ts`).
   (påverkat av lärdom: ja, LARDOMAR.md: "Varje katalog i ARKITEKTUR avsnitt 1
@@ -2098,3 +2347,73 @@ Kvar är förutsättningar som inte är öppna frågor:
   1.12 (då ligger `eslint.config.js` oprövad till dess, och 1.12 får en
   leverans till); `globals.browser` för `.js` (inga webbläsar-`.js` finns i
   avsnitt 1). (påverkat av lärdom: nej)
+- D47: `contrast.ts` har feltabellen C1-C9 i 4.2, och alla publika funktioner
+  kastar `Error` med svensk text. `composite` och `relativeLuminance` (och
+  därmed `contrastRatio`) kontrollerar också sina `Rgb`-argument (C4, C5),
+  inte bara de tolkande funktionerna, så att ingen publik funktion kan ge `NaN`
+  eller ett värde utanför 0-255 vidare. Bortvalt: kontroll bara i `parseHex`
+  och `parseRgba` (då har modulens publika funktioner olika ingångskontroll).
+  (påverkat av lärdom: ja, LARDOMAR.md: "Varje modul som kastar eller
+  returnerar fel har en tabell i `docs/ARKITEKTUR.md` med villkor och svensk
+  text per rad, skriven innan koden.", "Alla publika funktioner i en modul har
+  samma ingångskontroll och samma feltyp." och "Ingen publik funktion
+  returnerar NaN, -0 eller ∞.")
+- D48: `readColorTokens` kastar på första ogiltiga `--color-`-rad och hoppar
+  aldrig över en; en dubblerad token kastar (C8) även med samma värde. Skäl:
+  3.2 kräver att testet faller på varje annan form, och en överhoppad eller
+  tyst överskriven rad skulle låta en felskriven token passera. Fel från
+  `parseHex`/`parseRgba` släpps igenom utan omslag, så att varje fel har en
+  enda text. Nollställningen `--color-*: initial;` undantas uttryckligen men
+  krävs exakt en gång och före alla färgtokens (C7, C9), eftersom en
+  saknad eller sen nollställning låter Tailwinds standardpalett finnas kvar
+  (4.1). Raden "Det `readColorTokens` inte fångar" står i 4.2. (påverkat av
+  lärdom: ja, LARDOMAR.md: "En textspärr prövas med varje stavning språket
+  tillåter" och "Ett undantagstest asserterar hela meddelandet")
+- D49: `contrast.ts` får en egen testfil, `tests/support/contrast.test.ts`,
+  bredvid modulen; den fångas av Vitests `tests/**/*.test.ts` och av
+  `tsconfig.test.json`. (påverkat av lärdom: ja, LARDOMAR.md: "Varje ny
+  modul/klass får en egen testfil i samma paket.")
+- D50: Spärren mot externa typsnittsvärdar ligger i en egen fil,
+  `tests/fonts-local.test.ts`, inte i `tokens-contrast.test.ts`, eftersom den
+  prövar en annan regel (A2) än kontrasten. Den väljer CSS-filer rekursivt
+  utan att följa symboliska länkar, kräver att `index.css` och `tokens.css`
+  finns bland de lästa filerna och har avsnittet "Det spärren inte fångar"
+  (4.3). (påverkat av lärdom: ja, LARDOMAR.md: "En spärr som ska gälla 'varje
+  fil' väljer filer rekursivt, aldrig ur en fast lista, och följer inte
+  symboliska länkar." och "har ett avsnitt 'Det spärren inte fångar'")
+- D51: `composite` avrundar varje kanal med `Math.round`. Skäl: en skärm visar
+  heltalskanaler, så den avrundade färgen är den som läses, och resultatet
+  blir ett giltigt `Rgb` som klarar C4 i `relativeLuminance`. Testet av
+  `composite` har den väntade litteralen `{ r: 95, g: 106, b: 122 }`; T18 och N5
+  kräver ≥ 4,5 respektive ≥ 3 och asserterar inte kvoten exakt. Med
+  oavrundad komposition gav T18 5.483893 (1.7-förstudien 2026-11-20).
+  Bortvalt: oavrundad komposition (resultatet är inget heltals-`Rgb`, och
+  `Rgb` skulle behöva två betydelser). `contrastRatio` för svart mot vitt
+  asserteras med `toBeCloseTo(21, 10)`, inte som exakt 21, eftersom ingen
+  körning har visat flyttalsresultatet. (påverkat av lärdom: ja,
+  LARDOMAR.md: "Kontrollera gränser igen på den form som lagras (efter
+  avrundning)." och "Ett påstående om exakthet eller en gräns")
+- D52: `tokens.css`, `index.css` och `main.tsx` står ordagrant i 4.6. Den enda
+  bas-stilen är `body` med `bg-neutral-50 font-body text-primary-900`, så att
+  typsnitt, bakgrund och textfärg gäller utan att en komponent sätter dem.
+  `tokens.css` importeras från `index.css` (`@import './tokens.css'`), så att
+  `@theme` bara finns i en fil. Hex skrivs med gemener i `tokens.css` och
+  `parseHex` godtar båda skiftlägen, så att Prettiers formatering inte kan
+  krocka med tolkningen; jämförelser av hex sker på tolkade värden (4.5).
+  Typsnitten importeras som `@fontsource-variable/<namn>/index.css`, så att
+  importen matchar `*.css`-deklarationen i `vite/client` och typkontrollen
+  inte beror på hur TypeScript behandlar sidoeffektsimporter av paket utan
+  typer. Bortvalt: typsnittsimporter i `index.css` (Tailwind tolkar
+  `@import` själv, och om paketens relativa `url()` då pekar rätt är inte
+  prövat); bas-stilar för rubriker (4.3 sätter `font-heading` per element).
+  (påverkat av lärdom: ja, LARDOMAR.md: "Varje konfigurationsfil i
+  mappstrukturen har sitt innehåll angivet i ARKITEKTUR.md.")
+- D53: Typsnittens licens skrivs i 1.20, när `docs/media-credits.md` skapas,
+  under `## Typsnitt` med formatet i avsnitt 8; 1.7 redovisar bara `license`
+  ur paketens `package.json`. `media-credits.test.ts` kräver att
+  `Paket`-kolumnen stämmer med `@fontsource-variable/*` i `dependencies`.
+  Skäl: filen får bara en skapande uppgift, och två ställen som beskriver
+  samma paket får ett test som kräver att de stämmer. (påverkat av lärdom: ja,
+  LARDOMAR.md: "Varje fil i mappstrukturen ska ha exakt en skapande uppgift."
+  och "Två konstanter som beskriver samma domän får ett test som kräver att de
+  stämmer.")
