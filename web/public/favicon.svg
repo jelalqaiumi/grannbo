@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 317.9 307.8">
+  <title>Grannbo</title>
+  <rect x="73.6" y="0" width="26.8" height="53.6" rx="13.4" fill="#1b2a41" />
+  <rect x="220.9" y="0" width="26.8" height="53.6" rx="13.4" fill="#1b2a41" />
+  <rect x="0" y="73.6" width="66.9" height="66.9" rx="16.7" fill="#1b2a41" />
+  <rect x="83.6" y="73.6" width="66.9" height="66.9" rx="16.7" fill="#1b2a41" />
+  <rect x="167.3" y="73.6" width="66.9" height="66.9" rx="16.7" fill="#1b2a41" />
+  <rect x="251" y="73.6" width="66.9" height="66.9" rx="16.7" fill="#1b2a41" />
+  <rect x="0" y="157.3" width="66.9" height="66.9" rx="16.7" fill="#1b2a41" />
+  <path
+    d="M78.6 185.4L113.7 150.5A5 5 0 0 1 120.7 150.5L155.6 185.4V223.6A5.7 5.7 0 0 1 149.9 229.3H84.3A5.7 5.7 0 0 1 78.6 223.6Z"
+    fill="#e38b5c"
+  />
+  <rect x="167.3" y="157.3" width="66.9" height="66.9" rx="16.7" fill="#1b2a41" />
+  <rect x="251" y="157.3" width="66.9" height="66.9" rx="16.7" fill="#1b2a41" />
+  <rect x="0" y="240.9" width="66.9" height="66.9" rx="16.7" fill="#1b2a41" />
+  <rect x="83.6" y="240.9" width="66.9" height="66.9" rx="16.7" fill="#1b2a41" />
+  <rect x="167.3" y="240.9" width="66.9" height="66.9" rx="16.7" fill="#1b2a41" />
+  <rect x="251" y="240.9" width="66.9" height="66.9" rx="16.7" fill="#c9d2de" />
+</svg>
