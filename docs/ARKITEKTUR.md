@@ -103,7 +103,7 @@ Faserna 2-6 får egna avsnitt först när de planeras.
 │     ├─ lib/
 │     │  └─ cn.ts              Slår ihop klassnamn (ersätter clsx)
 │     ├─ test/
-│     │  └─ setup.ts           jest-dom, stubbar för matchMedia och IntersectionObserver
+│     │  └─ setup.ts           Bara jest-dom (5.1). Stubbar för matchMedia/IntersectionObserver ligger i testfilerna som behöver dem
 │     ├─ components/
 │     │  ├─ ui/                Komponentbiblioteket (avsnitt 6). Varje komponent + egen *.test.tsx
 │     │  ├─ brand/Logo.tsx     Logotypen som SVG (1.8)
@@ -178,12 +178,12 @@ Regler för strukturen:
 | Kodstil api: `dotnet format` + `TreatWarningsAsErrors=true`, regler i `api/.editorconfig` (5.2) | Ingår i SDK:n. `.editorconfig` sätter LF, så att `dotnet format` och `.gitattributes` kräver samma radslut (D38). | StyleCop, andra analyspaket. |
 | Docker-avbildningar `mcr.microsoft.com/dotnet/sdk:10.0`, `mcr.microsoft.com/dotnet/aspnet:10.0`, `postgres:17-alpine` | Officiella avbildningar. Postgres 17 har den välkända datakatalogen `/var/lib/postgresql/data`; 18 ändrade volymsökvägen. | `postgres:18`, `latest`-taggar. |
 | Node 24 (`web/.nvmrc` = `24`), npm 11, `package-lock.json` | Verifierat lokalt (v24.19.0, npm 11.17.0). Lockfilen låser alla exakta versioner; CI kör `npm ci`. | yarn, pnpm. |
-| React (≥ 19) + TypeScript + Vite, `@vitejs/plugin-react` | Specen. React 19 kan rendera `<title>` i komponenter, så ingen helmet-modul behövs. | Next.js, CRA. |
+| React (≥ 19) + TypeScript **6.0.3** (D40) + Vite, `@vitejs/plugin-react`, `@types/node` **^24** (D41) | Specen. React 19 kan rendera `<title>` i komponenter, så ingen helmet-modul behövs. | Next.js, CRA. |
 | Tailwind CSS 4 via `@tailwindcss/vite`; tokens i ett `@theme`-block i `web/src/styles/tokens.css` | Specen kräver tokens "i Tailwind-konfigen". I Tailwind 4 *är* `@theme` konfigurationen; ingen `tailwind.config.js` behövs. | Tailwind 3 med `tailwind.config.ts` (äldre major). PostCSS-uppsättning. |
 | React Router (≥ 7), `createBrowserRouter` | Specen. Fas 1 behöver riktiga sidor för integritetspolicy, demo-platshållare och 404, eftersom footerns länkar ska gå till sidor som finns. | Egen routing, flersides-Vite. |
 | TanStack Query: **installeras inte i Fas 1** | Landningssidan gör inga API-anrop. Installeras i den fas där första anropet görs. | Installera nu "för framtiden". |
 | Framer Motion: **installeras inte i Fas 1** | Animationerna i Fas 1 (toast in/ut, skeleton-puls) klaras med CSS och `motion-safe:`/`motion-reduce:`. När biblioteket behövs installeras paketet `motion` (det nya namnet på Framer Motion, import från `motion/react`). | Installera nu. |
-| ESLint (flat config, ≥ 9) med `@eslint/js`, `typescript-eslint`, `eslint-plugin-react-hooks`, `eslint-plugin-react-refresh`, `eslint-plugin-jsx-a11y`, `globals`, `eslint-config-prettier` | Vites mall + jsx-a11y, som fångar saknad alt-text, felaktiga ARIA-attribut och fokusfel redan i lint. Specen kräver WCAG AA. | Ingen a11y-lint (fel hittas först i Lighthouse). |
+| ESLint (flat config) `eslint` och `@eslint/js` **9.39.5** (D39) med `typescript-eslint`, `eslint-plugin-react-hooks`, `eslint-plugin-react-refresh`, `eslint-plugin-jsx-a11y`, `globals`, `eslint-config-prettier` | Vites mall + jsx-a11y, som fångar saknad alt-text, felaktiga ARIA-attribut och fokusfel redan i lint. Specen kräver WCAG AA. | Ingen a11y-lint (fel hittas först i Lighthouse). |
 | Prettier 3 | Formatering, kontrolleras i CI med `--check`. | - |
 | Vitest + `jsdom` + `@testing-library/react` + `@testing-library/dom` + `@testing-library/user-event` + `@testing-library/jest-dom` | Specen. | Jest. |
 | `@playwright/test` (devDependency, installeras i 1.8), bara lokalt i Fas 1 | Används till: logojämförelsen i 1.8, rastring av SVG i medieskriptet (1.14, 1.21) och responsivitetskontrollen i 1.22. Det enda pålitliga sättet att mäta "ingen vågrät rullning" i en riktig webbläsare vid 375/768/1440 px och ta helsidesbilder per bredd. Används med `channel: 'chrome'` (Chrome finns, K19). | Manuell kontroll i DevTools (går inte att upprepa eller granska). Playwright i CI (ökar CI-tiden och kräver webbläsarinstallation; tas upp i Fas 4). |
@@ -195,8 +195,11 @@ Regler för strukturen:
 
 **Versioner.** Det enda arkitekten kan stå för är det som verifierats lokalt:
 .NET SDK 10.0.302, Node v24.19.0, npm 11.17.0 (avsnitt 12). Major-versionerna
-ovan ("≥ 19", "4", "≥ 7", "≥ 9", "3") är minimikrav. Byggaren installerar senaste
-stabila version av varje paket när paketet läggs till, låser den via
+ovan ("≥ 19", "4", "≥ 7", "3") är minimikrav. Byggaren installerar senaste
+stabila version av varje paket när paketet läggs till, med undantag för de
+låsningar som står i D-posterna (D37 `xunit.v3.mtp-off`, D39 ESLint 9.39.5,
+D40 TypeScript 6.0.3, D41 `@types/node` ^24). Ingen `--legacy-peer-deps`.
+Byggaren låser versionen via
 `package-lock.json` respektive `packages.lock.json`, och redovisar de faktiska
 versionerna (utdrag ur `npm ls --depth=0` och `Directory.Packages.props`) i
 redovisningen för 1.3 och 1.5. Ingen version skrivs in i README förrän den är
@@ -544,9 +547,9 @@ Alla körs med yttre tidsgräns i Git Bash. Status per kommando: avsnitt 12.
 | K11 | `timeout 900 npm test` | `vitest run` |
 | K12 | `timeout 900 npm run test:e2e` | `playwright test` (kräver K10 först) |
 | K13 | `timeout 900 npm run lighthouse` | `node scripts/lighthouse.mjs` (kräver K10 först) |
-| - | `npm run dev` | `vite` |
-| - | `npm run preview` | `vite preview --port 4173 --strictPort` |
-| - | `npm run format` | `prettier --write .` |
+| K24 | `npm run dev` | `vite` (1.5) |
+| K25 | `npm run preview` | `vite preview --port 4173 --strictPort` (1.5) |
+| K26 | `timeout 300 npm run format` | `prettier --write .` (1.5) |
 | K22 | `timeout 900 npm run media:placeholders` | `node scripts/media/make-placeholders.mjs` (avsnitt 8; körs inte i CI) |
 
 `vite.config.ts` har ett `test`-block med `environment: 'jsdom'`,
@@ -577,6 +580,49 @@ arbetskatalogen är `web/`, därför behövs listan i `.prettierignore`.
 `package-lock.json` står bara i `.prettierignore` (den genereras av npm och ska
 checkas in). Lokalt körs K8 och K9 en gång till efter K10-K13, så att genererade
 kataloger syns om de inte är ignorerade.
+
+**Skripten per uppgift.** `package.json` får i 1.5 skripten `dev`, `build`,
+`preview`, `lint`, `format`, `format:check` och `test`. `media:placeholders`
+läggs till i 1.12, `test:e2e` i 1.22 och `lighthouse` i 1.23; inget av dem
+finns i 1.5.
+
+**Kontrollen av skripten i 1.5** (arbetskatalog `web/`, Git Bash):
+- K26 `format` körs, och därefter ger K9 `format:check` EXIT=0.
+- K25 `preview`: efter K10 startas
+  `timeout 60 npm run preview > ../.scratch/preview.log 2>&1 &`, och efter att
+  servern svarat ger
+  `curl.exe -s -o /dev/null -w "%{http_code}" --max-time 10 http://localhost:4173/`
+  utdata `200`.
+- K24 `dev`: på samma sätt med
+  `timeout 60 npm run dev -- --port 5173 --strictPort > ../.scratch/dev.log 2>&1 &`
+  och `curl.exe … http://localhost:5173/` med utdata `200`.
+
+**Innehåll som 1.5 skapar** (ordagrant där innehåll anges):
+
+- `web/.prettierrc.json`: `{ "singleQuote": true }`
+- `web/src/test/setup.ts`: bara raden `import '@testing-library/jest-dom/vitest';`.
+  Stubbar för `matchMedia` och `IntersectionObserver` läggs inte här, utan i
+  varje testfil som behöver dem, med start i den uppgift som först behöver dem
+  (1.12 respektive 1.13). Skäl i D42.
+- `web/src/App.tsx`: namngiven export `App` som renderar `<h1>Grannbo</h1>`.
+  `App.test.tsx` kontrollerar `getByRole('heading', { level: 1, name: 'Grannbo' })`.
+  1.5b ersätter innehållet med routern.
+- `web/index.html`: `<html lang="sv">`, `<meta charset="utf-8">`,
+  `<meta name="viewport" content="width=device-width, initial-scale=1">` och
+  `<title>` enligt 7.10. Övriga rader i 7.10 läggs till i 1.8 (favicon), 1.12
+  (preload) och 1.21 (resten).
+- `web/src/main.tsx`: renderar `<App />` inom `StrictMode` med `createRoot`,
+  importerar `./styles/index.css` och `{ App }` från `./App` utan filändelse.
+- `tsconfig.json`, `tsconfig.app.json`, `tsconfig.node.json`: de tre filerna
+  från create-vite 9.3.4 (mallen `react-ts`). Oxlint och `.oxlintrc.json` från
+  mallen tas bort och ersätts av ESLint. Alternativ som TypeScript 6.0.3 inte
+  stöder justeras, och byggaren redovisar varje avvikelse från mallen.
+  `"strict": true` ska finnas.
+- `web/eslint.config.js`, i den här ordningen: `globalIgnores([...])` enligt
+  listan ovan; `js.configs.recommended`; `tseslint.configs.recommended` (inte
+  type-checked); `jsxA11y.flatConfigs.strict`;
+  `reactHooks.configs.flat.recommended`; `reactRefresh.configs.vite`;
+  `languageOptions.globals` = `globals.browser`; `eslint-config-prettier` sist.
 
 **Compose** (arbetskatalog roten, `.env` kopierad från `.env.example`):
 
@@ -1515,7 +1561,7 @@ fil står under "Använder".
 | 1.2 | Avsnitt 10 och 3.3. | `.gitignore`, `.gitattributes`, `.env.example` | - |
 | 1.3 | Avsnitt 2 (.NET-raderna), 5.2, K3-K6. | allt under `api/` utom `Dockerfile` och `.dockerignore` | - |
 | 1.4 | Avsnitt 5.3, K14-K17. Får inte märkas klar förrän K14-K16 har körts; Docker Desktop installeras av användaren (A12). Finns Docker inte när 1.3 är klar blir 1.4 ett eget paket, P2b, och P3 får starta under tiden (`docs/plan.md`, "Arbetsgång"). | `api/Dockerfile`, `api/.dockerignore`, `docker-compose.yml` | `api/` (1.3), `.env.example` (1.2) |
-| 1.5 | Avsnitt 2 (webbraderna), 5.1 (K7-K11 och ignoreringslistorna), struktur i avsnitt 1. Första testet `src/App.test.tsx`: `App` renderar en `<h1>`. Versioner redovisas. | `web/.nvmrc`, `package.json`, `package-lock.json`, `vite.config.ts`, `tsconfig*.json`, `eslint.config.js`, `.prettierrc.json`, `.prettierignore`, `index.html` (`lang`, `charset`, `viewport`, `<title>`), `src/main.tsx` (slutlig form: monterar `App`, importerar `index.css`), `src/App.tsx`, `src/App.test.tsx`, `src/styles/index.css` (`@import "tailwindcss"`), `src/test/setup.ts` | - |
+| 1.5 | Avsnitt 2 (webbraderna och versionslåsningarna D39-D41), 5.1 (K7-K11, ignoreringslistorna, "Skripten per uppgift", "Kontrollen av skripten i 1.5" med K24-K26, och "Innehåll som 1.5 skapar"), struktur i avsnitt 1. Första testet `src/App.test.tsx`: heading level 1 med namnet "Grannbo". Versioner och avvikelser från create-vite-mallens tsconfig redovisas. | `web/.nvmrc`, `package.json` (skripten `dev`, `build`, `preview`, `lint`, `format`, `format:check`, `test`), `package-lock.json`, `vite.config.ts`, `tsconfig.json`, `tsconfig.app.json`, `tsconfig.node.json`, `eslint.config.js`, `.prettierrc.json`, `.prettierignore`, `index.html` (`lang`, `charset`, `viewport`, `<title>`), `src/main.tsx` (slutlig form), `src/App.tsx`, `src/App.test.tsx`, `src/styles/index.css` (`@import "tailwindcss"`), `src/test/setup.ts` (bara jest-dom) | - |
 | 1.6 | Avsnitt 5.4. Kräver push till remote `origin` (F4) och en grön körning av båda jobben på GitHub, med körningens resultat redovisat. | `.github/workflows/ci.yml` | `api/` (1.3), `web/` (1.5) |
 | 1.7 | Avsnitt 4.1-4.4, 4.2 (alla par T1-T19, N1-N5 och X1), K23. Typsnitt: Fraunces och Inter (F5). | `src/styles/tokens.css`, `tests/support/contrast.ts`, `tests/tokens-contrast.test.ts`, paketen `@fontsource-variable/fraunces` och `@fontsource-variable/inter` | `index.css`, `main.tsx` (1.5) |
 | 1.8 | Avsnitt 4.5 (A3, A13). Favicon-raden i `index.html` (7.10). | `src/components/brand/Logo.tsx`, `Logo.test.tsx`, `tests/logo-colors.test.ts`, `public/favicon.svg`, `docs/brand/logo-source.pdf`, `docs/brand/logo-source.png`, paketet `@playwright/test` | `tokens.css` (1.7), `index.html` (1.5) |
@@ -1557,6 +1603,8 @@ fil står under "Använder".
 | K21 | Längd och strömmar (från `web/`): `timeout 120 node -e "require('child_process').spawnSync(require('ffmpeg-static'),['-hide_banner','-i',process.argv[1],'-f','null','-'],{stdio:'inherit'})" public/media/hero-drone.<ext>` | Okörd. Körs i 1.12 för `webm` och `mp4`. Utdatan ska visa `Duration` mellan 10 och 20 s och ingen rad `Stream ... Audio`. (ffprobe ingår inte i `ffmpeg-static`.) |
 | K22 | `npm run media:placeholders` | Okörd. Körs i 1.12 (hero-filerna), 1.14 (lokalbilderna) och 1.21 (`og-image.jpg`). |
 | K23 | Kontrastkvoter för basfärgerna, WCAG-formeln i Node | Uträknade av koordinatorn 2026-11-20: `#E38B5C`/`#F4F6F9` = 2.39; `#E38B5C`/`#1B2A41` = 5.58; `#9A4A28`/`#F4F6F9` = 5.73; `#1B2A41`/`#F4F6F9` = 13.34; `#475569`/`#F4F6F9` = 7.00. Avrundade till två decimaler; ingen av dem ligger nära en gräns. Testet i 1.7 räknar om dem oavrundade (par X1, T19, T8, T1, T3). |
+| K24-K26 | `dev`, `preview` och `format` med kontrollerna i 5.1 | Okörda. Körs i 1.5. |
+| - | Versionslåsningar | Kontrollerade av byggaren 2026-11-20 med `npm view` och provinstallation: ESLint 10 med `eslint-plugin-jsx-a11y` 6.10.2 gav ERESOLVE, EXIT=1 (D39); `typescript-eslint` 8.73.0 kräver TypeScript `>=4.8.4 <6.1.0` (D40). |
 | - | Docker | Koordinatorn 2026-11-20: inte installerat än. Användaren installerar Docker Desktop själv. Se K14-K17. |
 | - | `git remote -v` | Koordinatorn 2026-11-20: remote `origin` finns och pekar på ett tomt GitHub-repo (adressen står bara i `docs/decisions.md` F4). `gh` saknas. |
 
@@ -1746,3 +1794,26 @@ Kvar är förutsättningar som inte är öppna frågor:
   LF (byggarens fynd i 1.3). (påverkat av lärdom: ja, LARDOMAR.md: "Varje
   konfigurationsfil i mappstrukturen har sitt innehåll angivet i
   ARKITEKTUR.md.")
+- D39: `eslint` och `@eslint/js` låses till 9.39.5 (koordinatorns beslut
+  2026-11-20). Skäl: ESLint 10 kan inte installeras med
+  `eslint-plugin-jsx-a11y` 6.10.2, vars peer-krav är `^3 … || ^9`; npm gav
+  ERESOLVE, EXIT=1 (byggarens provinstallation 2026-11-20). Varningen om att
+  9.39.5 är deprecated accepteras, eftersom jsx-a11y behövs för WCAG. Ingen
+  `--legacy-peer-deps`. (påverkat av lärdom: ja, LARDOMAR.md: "först när det
+  har körts i den här miljön med exit 0")
+- D40: TypeScript låses till 6.0.3 (koordinatorns beslut 2026-11-20). Skäl:
+  `typescript-eslint` 8.73.0 kräver TypeScript `>=4.8.4 <6.1.0`, så TS 7.0.2
+  fungerar inte. (påverkat av lärdom: nej)
+- D41: `@types/node` låses till `^24`, eftersom projektet kör Node 24
+  (`web/.nvmrc`). (påverkat av lärdom: nej)
+- D42: `src/test/setup.ts` innehåller bara jest-dom. Stubbar för `matchMedia`
+  och `IntersectionObserver` läggs i de testfiler som behöver dem, med start i
+  1.12 och 1.13. Skäl: en global stub för `IntersectionObserver` skulle göra
+  fall (d) i 6.9 ("`IntersectionObserver` saknas - då monteras den direkt")
+  omöjligt att testa, och en stub ska inte ligga i en uppgift som inte använder
+  den. (påverkat av lärdom: ja, LARDOMAR.md: "skriv kravet per sida/fil")
+- D43: Innehållet i filerna som 1.5 skapar (`.prettierrc.json`, `setup.ts`,
+  `App.tsx`, `index.html`, `main.tsx`, tsconfig-filerna och `eslint.config.js`)
+  och skriptens fördelning per uppgift står i 5.1 (koordinatorns beslut
+  2026-11-20, efter att byggaren lämnat tillbaka 1.5). (påverkat av lärdom: ja,
+  LARDOMAR.md: "Byggaren fattar inga egna beslut.")
