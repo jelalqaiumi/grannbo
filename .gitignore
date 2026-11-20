@@ -1,0 +1,40 @@
+# .NET
+bin/
+obj/
+.vs/
+*.user
+*.suo
+TestResults/
+
+# Node / webb
+node_modules/
+web/dist/
+web/.lighthouse/
+web/.e2e-output/
+web/test-results/
+web/playwright-report/
+web/coverage/
+
+# Miljö och hemligheter
+.env
+.env.*
+!.env.example
+**/secrets.json
+appsettings.*.local.json
+*.pfx
+*.p12
+*.pem
+*.key
+
+# Utredningsskript
+.scratch/
+
+# Editor och OS
+.idea/
+.DS_Store
+Thumbs.db
+
+# Checkas inte in (F4, F8)
+LARDOMAR.arkiv.md
+PROMPT-grannbo.md
+.claude/
