@@ -26,7 +26,7 @@ Faserna 2-6 får egna avsnitt först när de planeras.
 
 ```
 /                              Monorepo-rot
-├─ .gitattributes              Radslut LF för text, binärmarkering för media och typsnitt (1.2)
+├─ .gitattributes              Radslut LF för text, binärmarkering för media, typsnitt och PDF (1.2, `*.pdf` i 1.8)
 ├─ .gitignore                  Se avsnitt 10 (1.2)
 ├─ .env.example                Bara variabelnamn och platshållare (1.2)
 ├─ docker-compose.yml          PostgreSQL + API (1.4, inte tidigare)
@@ -106,7 +106,7 @@ Faserna 2-6 får egna avsnitt först när de planeras.
 │     ├─ lib/
 │     │  └─ cn.ts              Slår ihop klassnamn (ersätter clsx)
 │     ├─ test/
-│     │  └─ setup.ts           Bara jest-dom (5.1). Stubbar för matchMedia/IntersectionObserver ligger i testfilerna som behöver dem
+│     │  └─ setup.ts           jest-dom och global `afterEach(cleanup)` (5.1, D60). Stubbar för matchMedia/IntersectionObserver ligger i testfilerna som behöver dem
 │     ├─ components/
 │     │  ├─ ui/                Komponentbiblioteket (avsnitt 6). Varje komponent + egen *.test.tsx
 │     │  ├─ brand/Logo.tsx     Logotypen som SVG (1.8)
@@ -152,7 +152,11 @@ Regler för strukturen:
 - Tester som läser filer från disk ligger i `web/tests/`. Undantag: ett
   komponenttest som behöver en fils innehåll läser den med Vites `?raw`-import
   (inte `node:fs`) och ligger då intill komponenten i jsdom-miljön; i Fas 1
-  gäller det bara `Logo.test.tsx` (4.5). En testhjälpare i `web/tests/support/`
+  gäller det bara `Logo.test.tsx`, som läser `public/favicon.svg` (4.5).
+  `tests/logo-colors.test.ts` läser `public/favicon.svg`,
+  `src/styles/tokens.css` och `src/components/brand/Logo.tsx` med `node:fs`
+  och importerar `parseHex` och `readColorTokens` från
+  `tests/support/contrast.ts` (4.5, D58). En testhjälpare i `web/tests/support/`
   har sin testfil bredvid sig (`contrast.ts` + `contrast.test.ts`). Kommentaren
   `// @vitest-environment node` får bara stå överst i en testfil som varken
   renderar en komponent eller använder DOM-API:er; miljön per fil står i
@@ -191,7 +195,7 @@ Regler för strukturen:
 | Prettier 3 | Formatering, kontrolleras i CI med `--check`. | - |
 | Vitest + `jsdom` + `@testing-library/react` + `@testing-library/dom` + `@testing-library/user-event` + `@testing-library/jest-dom` | Specen. | Jest. |
 | `@vitest/coverage-v8` **5.1.1** (devDependency, installeras i 1.8, D54) | LARDOMAR kräver `vitest --coverage` på nya filer. Vitest kräver ett täckningspaket med exakt samma version som Vitest själv: `vitest` 5.1.1 har peer-kravet `"@vitest/coverage-v8": "5.1.1"` i `web/package-lock.json`. V8 mäter med motorns inbyggda täckning, utan att källan transformeras. | `@vitest/coverage-istanbul` (instrumenterar källan, ett steg till mellan testet och koden). Täckning i CI med procentgränser (en procentsats avgör inte varje otäckt rad, vilket regeln kräver). |
-| `@playwright/test` (devDependency, installeras i 1.8), bara lokalt i Fas 1 | Används till: logojämförelsen i 1.8, rastring av SVG i medieskriptet (1.14, 1.21) och responsivitetskontrollen i 1.22. Det enda pålitliga sättet att mäta "ingen vågrät rullning" i en riktig webbläsare vid 375/768/1440 px och ta helsidesbilder per bredd. Används med `channel: 'chrome'` (Chrome finns, K19). | Manuell kontroll i DevTools (går inte att upprepa eller granska). Playwright i CI (ökar CI-tiden och kräver webbläsarinstallation; tas upp i Fas 4). |
+| `@playwright/test` **1.65.1** (devDependency, installerad i 1.8 med `--save-exact`, D56), bara lokalt i Fas 1 | Används till: logojämförelsen i 1.8, rastring av SVG i medieskriptet (1.14, 1.21) och responsivitetskontrollen i 1.22. Det enda pålitliga sättet att mäta "ingen vågrät rullning" i en riktig webbläsare vid 375/768/1440 px och ta helsidesbilder per bredd. Används med `channel: 'chrome'` (Chrome finns, K19). | Manuell kontroll i DevTools (går inte att upprepa eller granska). Playwright i CI (ökar CI-tiden och kräver webbläsarinstallation; tas upp i Fas 4). |
 | `lighthouse` (devDependency) | Specens klarkriterium. Som devDependency blir versionen låst i lockfilen och mätningen går att upprepa. | `npx lighthouse@latest` (olåst version), PageSpeed Insights (kräver publicerad sida). |
 | Typsnitt: Fraunces (rubriker) via `@fontsource-variable/fraunces` och Inter (brödtext) via `@fontsource-variable/inter` (F5) | A2: självhostat, inget hämtas från tredje part. Båda är OFL, som uttryckligen tillåter spridning. Fontsource-paketen buntas av Vite och serveras från samma origin. | Google Fonts-CDN. Typsnitt som inte är OFL (F5). |
 | Ikoner: egenritade SVG-komponenter | Ikonerna som behövs är enkla (uppräknade i avsnitt 1 under `components/icons/`). Inget beroende, ingen licensfråga. | lucide-react m.fl. |
@@ -203,7 +207,9 @@ Regler för strukturen:
 ovan ("≥ 19", "4", "≥ 7", "3") är minimikrav. Byggaren installerar senaste
 stabila version av varje paket när paketet läggs till, med undantag för de
 låsningar som står i D-posterna (D37 `xunit.v3.mtp-off`, D39 ESLint 9.39.5,
-D40 TypeScript 6.0.3, D41 `@types/node` exakt inom ^24). Ingen `--legacy-peer-deps`.
+D40 TypeScript 6.0.3, D41 `@types/node` exakt inom ^24) och de versioner som
+står i fetstil i tabellen (`@vitest/coverage-v8` 5.1.1, D54, `@playwright/test`
+1.65.1, D56). Ingen `--legacy-peer-deps`.
 Alla npm-paket installeras med `--save-exact`, så att `package.json`
 anger exakta versioner (inga `^` eller `~`). Byggaren låser versionen via
 `package-lock.json` respektive `packages.lock.json`, och redovisar de faktiska
@@ -656,6 +662,15 @@ export function Logo(props: LogoProps): JSX.Element;
     filer): varje hex-värde i `public/favicon.svg` finns bland färgtokens i
     `tokens.css` (jämfört som `parseHex`-värden, eftersom `tokens.css` skriver
     hex med gemener, 4.6); `src/components/brand/Logo.tsx` innehåller ingen hex-färg.
+    Tokenvärdena läses med `readColorTokens` och båda sidor tolkas med
+    `parseHex`, importerade från `tests/support/contrast.ts` (D58). Facit
+    sedan 1.8 (D59): hjälparen `findHexColors` (regex
+    `/#[0-9a-f]{3,8}\b/gi`) har egna fall som hittar hex i gemener, versaler,
+    tre, sex och åtta tecken och två färger på en rad, och fall utan träff
+    (`className="fill-primary-900"`, `fill="rgb(27 42 65)"`, `fill="red"`,
+    tom text); `favicon.svg` ska innehålla minst en hex-färg; filhuvudet har
+    avsnittet "Det spärren inte fångar" (andra färgformer än hex, hex som
+    byggs vid körning, och att ett ankare av bara hex-tecken räknas som färg).
   - `web/src/components/brand/Logo.test.tsx` (jsdom). Testet läser
     `favicon.svg` med Vites `?raw`-import
     (`import faviconSvg from '../../../public/favicon.svg?raw'`), inte med
@@ -663,6 +678,25 @@ export function Logo(props: LogoProps): JSX.Element;
     av `variant` och `tone` har tillgängligt namn "Grannbo"
     (`getByRole('img', { name: 'Grannbo' })`); ordmärke och tagline har
     `aria-hidden="true"`; `withTagline` visar taglinen ordagrant.
+    Facit sedan 1.8 (D59), utöver det: tillgängligt namn även med
+    standardvärdena; två `Logo` på samma sida har olika `aria-labelledby`;
+    standard visar ordmärket men ingen tagline; `variant="mark"` visar varken
+    ordmärke eller tagline, även med `withTagline`; per `tone` har märkets
+    former i ordning klasserna basfärg på rutor och ringar, `fill-accent-500`
+    på huset och `fill-neutral-300` på sista rutan, och den andra tonens
+    basfärg förekommer inte; ordmärke och tagline har `text-primary-900`
+    respektive `text-neutral-600` (`onLight`) och `text-white` respektive
+    `text-neutral-300` (`onDark`); `className` hamnar på det yttersta
+    elementet i båda varianterna; `tone` är `onLight` som standard; utan
+    `className` innehåller det yttersta elementets `class` varken en tom
+    klass eller `undefined`; `favicon.svg` har `<title>Grannbo</title>`.
+    Testfilen har ingen egen `afterEach(cleanup)`; städningen ligger i
+    `src/test/setup.ts` (5.1, D60).
+  - Klasser i `Logo.tsx` som inget test kräver, facit sedan 1.8 (D59): märkets
+    `<svg>` har `h-12 w-auto`; variant `full` omsluts av
+    `inline-flex flex-col items-center gap-2`; ordmärket har
+    `font-heading text-3xl font-semibold` och taglinen `font-heading text-sm`,
+    plus tonens textfärg ovan.
 - `index.html` får favicon-raden i 7.10. `Logo` används första gången av
   `SiteHeader` i 1.5b.
 - Märkets geometri finns både i `Logo.tsx` och i `favicon.svg`.
@@ -678,6 +712,15 @@ export function Logo(props: LogoProps): JSX.Element;
   kontrolleras i `Logo.test.tsx`. Färgkontroll:
   hex-värdet för varje färgyta i PNG:n (rutor, hus, ljus ruta, ringar,
   ordmärke) jämförs med token-värdet, och avvikelserna redovisas.
+- Utfall i 1.8 (commit e5237ad, 2026-11-20): enligt commitmeddelandet mättes
+  märket i den inbäddade JPEG:en (1560x1080) och färgerna kontrollerades mot
+  PNG:n; måttabellen, skalan och jämförelserna i form och färg står inte i den
+  här filen (avsnitt 12, raden "Logotypen, 1.8"). `Logo.tsx` och
+  `favicon.svg` fick `viewBox="0 0 317.9 307.8"` och samma former i samma
+  ordning: ringarna som `rect` med `rx` lika med halva bredden, rutorna som
+  `rect`, huset som en `path`. `favicon.svg` använde hex-värdena `#1b2a41`,
+  `#e38b5c` och `#c9d2de`, som är tokens `primary-900`, `accent-500` och
+  `neutral-300` i 4.6. Favicon-raden i `index.html` lades till enligt 7.10.
 
 ### 4.6 Filerna som 1.7 skapar eller ändrar i `web/src/` (ordagrant)
 
@@ -849,16 +892,21 @@ procentgränser; allt står i skriptet och på kommandoraden.
   som ska visa `5.1.1` och peer-kravet `vitest: 5.1.1` (annars lämnas det
   tillbaka till arkitekten), sedan
   `timeout 900 npm install --save-dev --save-exact @vitest/coverage-v8@5.1.1`.
-  Utdatan från båda redovisas.
+  Utdatan från båda redovisas. Utfall: 1.8 installerade paketet i version
+  5.1.1 och skriptet `test:coverage` med exakt innehållet i tabellen ovan
+  (`web/package.json` i commit e5237ad); utdatan från de två kommandona
+  finns inte i underlaget för den här filen (avsnitt 12, K29).
 - Redovisning: texttabellen ur utdatan och `EXIT=<kod>` ordagrant. För varje
   otäckt rad (kolumnen `Uncovered Line #s`) skrivs en rad: `<fil>:<rad>` och
   antingen "onåbar, borttagen" eller "oprövad, test skrivet: <testnamn>".
   Därefter körs K29 igen, och den sista körningen redovisas.
-- 1.8 kör K29 också för `tests/support/contrast.ts` (skapad i 1.7, före
-  K29), så att hela P4 är mätt före granskningen.
+- 1.8 körde K29 för `src/components/brand/Logo.tsx` och, eftersom den
+  skapades i 1.7 före K29, för `tests/support/contrast.ts`, så att hela P4
+  mättes före granskningen. Båda filerna var helt täckta, så ingen otäckt rad
+  behövde avgöras (utfallet i avsnitt 12).
 - Ger `--coverage.include` eller `--coverage.provider` fel i Vitest 5.1.1
   ändras inte skriptet på egen hand; det lämnas tillbaka till arkitekten med
-  utdatan.
+  utdatan. (I 1.8 gav de inget fel; avsnitt 12.)
 
 **Kontrollen av skripten i 1.5** (arbetskatalog `web/`, Git Bash):
 - K26 `format` körs, och därefter ger K9 `format:check` EXIT=0.
@@ -883,7 +931,37 @@ procentgränser; allt står i skriptet och på kommandoraden.
 - `web/src/test/setup.ts`: bara raden `import '@testing-library/jest-dom/vitest';`.
   Stubbar för `matchMedia` och `IntersectionObserver` läggs inte här, utan i
   varje testfil som behöver dem, med start i den uppgift som först behöver dem
-  (1.12 respektive 1.13). Skäl i D42.
+  (1.12 respektive 1.13). Skäl i D42. 1.8 ger filen det slutliga innehållet i
+  "`setup.ts` från 1.8" nedan (D60).
+
+**`setup.ts` från 1.8 (D60).** `web/src/test/setup.ts`, hela innehållet
+ordagrant:
+
+```ts
+import '@testing-library/jest-dom/vitest';
+import { cleanup } from '@testing-library/react';
+import { afterEach } from 'vitest';
+
+// Vitest körs utan globals (vite.config.ts), så Testing Library registrerar
+// ingen städning själv. Den görs här, en gång för alla testfiler.
+afterEach(cleanup);
+```
+
+Samtidigt tas städningen bort ur `src/components/brand/Logo.test.tsx`: raden
+`afterEach(cleanup);`, kommentaren ovanför den (ankare: `Vitest körs utan
+globals, så Testing Library`), `cleanup` ur importen från
+`@testing-library/react` och `afterEach` ur importen från `vitest`. Inget
+annat i testfilen ändras. `vite.config.ts` ändras inte (inget `globals: true`).
+Beviset:
+- efter ändringen ger K8-K11 och K29 (samma urval som i 1.8) EXIT=0 i `web/`,
+  och K11 har samma antal testfiler och test som i 1.8 (avsnitt 12);
+- i en kopia av `web/` under `.scratch/`:
+  `mutation: afterEach(cleanup); -> (raden borttagen ur setup.ts) ger EXIT=<kod>`
+  med K11, där koden ska vara ≠ 0 och `Logo.test.tsx` ska vara bland de
+  fallerade filerna.
+Ger K11 fel i en testfil med `// @vitest-environment node` (setup-filen körs
+också där) ändras inte innehållet på egen hand; det lämnas tillbaka till
+arkitekten med utdatan.
 - `web/src/App.tsx`: namngiven export `App` som renderar `<h1>Grannbo</h1>`.
   `App.test.tsx` kontrollerar `getByRole('heading', { level: 1, name: 'Grannbo' })`.
   1.5b ersätter innehållet med routern.
@@ -2057,6 +2135,12 @@ checkas in och får inte matchas av någon rad i `.gitignore`.
 `.gitattributes`: `* text=auto eol=lf`, och `binary` för `*.png *.jpg *.jpeg *.webp *.avif *.webm *.mp4 *.woff *.woff2 *.ico`.
 Skäl: Prettier kräver LF; utan regeln ger `prettier --check` fel på en
 Windows-utcheckning med `core.autocrlf=true`.
+Från 1.8 (D57) har filen också raden `*.pdf binary`, sist i filen. Kontroll
+(Git Bash, från roten): `git ls-files --eol docs/brand/logo-source.pdf` ska
+visa `i/-text` och `attr/-text`, och
+`git cat-file blob :docs/brand/logo-source.pdf | sha256sum` ska ge samma
+summa som `sha256sum docs/brand/logo-source.pdf` och som SHA256 för källfilen
+i 1.8 (avsnitt 1). Status i avsnitt 12.
 
 Kontrollen i 1.2: byggaren skapar en tom fil av varje ignorerad sort
 (`api/x/bin/a.dll`, `web/node_modules/a.js`, `.env`, `.env.local`,
@@ -2092,7 +2176,7 @@ körts för de filerna med EXIT=0 och att varje otäckt rad är avgjord.
 | 1.5 | Avsnitt 2 (webbraderna och versionslåsningarna D39-D41), 5.1 (K7-K11, ignoreringslistorna, "Skripten per uppgift", "Kontrollen av skripten i 1.5" med K24-K26, och "Innehåll som 1.5 skapar"), struktur i avsnitt 1. Första testet `src/App.test.tsx`: heading level 1 med namnet "Grannbo". Versioner och avvikelser från create-vite-mallens tsconfig redovisas. | `web/.nvmrc`, `package.json` (skripten `dev`, `build`, `preview`, `lint`, `format`, `format:check`, `test`), `package-lock.json`, `vite.config.ts`, `tsconfig.json`, `tsconfig.app.json`, `tsconfig.node.json`, `eslint.config.js`, `.prettierrc.json`, `.prettierignore`, `index.html` (`lang`, `charset`, `viewport`, `<title>`), `src/main.tsx` (typsnittsimporterna läggs till i 1.7), `src/App.tsx`, `src/App.test.tsx`, `src/styles/index.css` (`@import 'tailwindcss';`), `src/test/setup.ts` (bara jest-dom) | - |
 | 1.6 | Avsnitt 5.4. Kräver push till remote `origin` (F4) och en grön körning av båda jobben på GitHub, med körningens resultat redovisat. | `.github/workflows/ci.yml` | `api/` (1.3), `web/` (1.5) |
 | 1.7 | Avsnitt 4.1-4.4, 4.2 (alla par T1-T19, N1-N5 och X1, feltabellen C1-C9, `readColorTokens`, `composite` och `contrast.test.ts`), 4.3 (typsnitten och `fonts-local.test.ts`), 4.6 (`tokens.css`, `index.css` och `main.tsx` ordagrant), K23. Typsnitt: Fraunces och Inter (F5), som `dependencies`. Avsnitt 5.1 "Typkontroll och lint av alla kataloger (1.7)": tsconfig-filerna och `eslint.config.js` får exakt det innehåll som står där, och `tsconfig.test.json` checkas in i samma commit som första filen i `tests/`. Klar när: `tokens-contrast.test.ts` visar WCAG AA-kontrast för paren i 4.2 och X1 < 3; `contrast.test.ts` prövar varje rad C1-C9 med hela meddelandet; `fonts-local.test.ts` är grön och föll (EXIT≠0) för varje mutation i 4.3; paketens `font-family`, `license` och export av `./index.css` är redovisade (4.3); K27 ger EXIT≠0 med `TS2322` för varje fall i tabellen (`src/`, `tests/`, `e2e/`, `vite.config.ts`, `playwright.config.ts`), K28 ger EXIT≠0 med `no-unused-vars` och utan `no-undef`, och därefter ger K8–K11 EXIT=0 i `web/`, med utdata inklistrad. Commit gjord. | `src/styles/tokens.css`, `tests/support/contrast.ts`, `tests/support/contrast.test.ts`, `tests/tokens-contrast.test.ts`, `tests/fonts-local.test.ts`, `tsconfig.test.json`, paketen `@fontsource-variable/fraunces` och `@fontsource-variable/inter` | `index.css`, `main.tsx`, `tsconfig.json`, `tsconfig.node.json`, `eslint.config.js` (1.5) |
-| 1.8 | Avsnitt 4.5 (A3, A13). Favicon-raden i `index.html` (7.10). Avsnitt 5.1 "Täckning, K29" (D54): `@vitest/coverage-v8` 5.1.1 och skriptet `test:coverage`. Klar när: SVG:n använder bara tokenfärger och har en tillgänglig titel; måtten från JPEG:en och jämförelsen mot JPEG:en (form) och PNG:n (färg) är redovisade; K29 har körts för `tests/support/contrast.ts` och `src/components/brand/Logo.tsx` med EXIT=0, och varje otäckt rad är avgjord som onåbar (borttagen) eller oprövad (test skrivet), med utdata inklistrad. Commit gjord. | `src/components/brand/Logo.tsx`, `Logo.test.tsx`, `tests/logo-colors.test.ts`, `public/favicon.svg`, `docs/brand/logo-source.pdf`, `docs/brand/logo-source.png`, paketen `@playwright/test` och `@vitest/coverage-v8`, skriptet `test:coverage` | `tokens.css` och `tests/support/contrast.ts` (1.7), `index.html` och `package.json` (1.5) |
+| 1.8 | Avsnitt 4.5 (A3, A13). Favicon-raden i `index.html` (7.10). Avsnitt 5.1 "Täckning, K29" (D54): `@vitest/coverage-v8` 5.1.1 och skriptet `test:coverage`. `@playwright/test` 1.65.1 (D56). `*.pdf binary` i `.gitattributes` (avsnitt 10, D57). `setup.ts` från 1.8 och borttagen städning i `Logo.test.tsx` (5.1, D60). Klar när: SVG:n använder bara tokenfärger och har en tillgänglig titel; måtten från JPEG:en och jämförelsen mot JPEG:en (form) och PNG:n (färg) är redovisade; K29 har körts för `tests/support/contrast.ts` och `src/components/brand/Logo.tsx` med EXIT=0, och varje otäckt rad är avgjord som onåbar (borttagen) eller oprövad (test skrivet), med utdata inklistrad; kontrollen av `*.pdf` i avsnitt 10 och beviset för `setup.ts` i 5.1 är redovisade med utdata och exitkod. Commit gjord. Utfall: commit e5237ad (2026-11-20) innehöll inte `*.pdf binary` och inte `setup.ts` från 1.8 (D57, D60), och utdata och exitkoder ur 1.8 i avsnitt 12 är ofullständiga; 1.8 är därför inte klar. | `src/components/brand/Logo.tsx`, `Logo.test.tsx`, `tests/logo-colors.test.ts`, `public/favicon.svg`, `docs/brand/logo-source.pdf`, `docs/brand/logo-source.png`, paketen `@playwright/test` och `@vitest/coverage-v8`, skriptet `test:coverage` | `tokens.css` och `tests/support/contrast.ts` (1.7), `index.html`, `package.json` och `src/test/setup.ts` (1.5), `.gitattributes` (1.2) |
 | 1.9 | Avsnitt 6.1, 6.2. `ButtonLink` med `to` renderar React Routers `<Link>`, så paketet installeras här, och testerna renderar i `MemoryRouter`. | `src/lib/cn.ts`, `ui/Button.tsx`, `ui/Input.tsx` (+ tester), `ui/index.ts`, paketet `react-router` | `tokens.css` (1.7) |
 | 1.10 | Avsnitt 6.3-6.6. | `ui/Card.tsx`, `ui/Badge.tsx`, `ui/Skeleton.tsx`, `ui/EmptyState.tsx` (+ tester) | `cn`, `ui/index.ts` (1.9) |
 | 1.11 | Avsnitt 6.7, 6.8. | `ui/Toast.tsx`, `ui/Accordion.tsx` (+ tester), ikonerna chevron och stäng i `components/icons/` | `cn`, `ui/index.ts` (1.9) |
@@ -2121,7 +2205,7 @@ körts för de filerna med EXIT=0 och att varje otäckt rad är avgjord.
 | K4 | `dotnet build Grannbo.slnx -c Release --no-restore` | Körd av byggaren 2026-11-20 i 1.3: EXIT=0, 0 varningar. |
 | K5 | `dotnet format Grannbo.slnx --verify-no-changes --no-restore` | Körd av byggaren 2026-11-20 i 1.3: EXIT=0. `.slnx` gick att läsa. |
 | K6 | `dotnet test Grannbo.slnx -c Release --no-build` | Med `xunit.v3` 4.0.3 gav K6 EXIT=1 (felet i D37). Med `xunit.v3.mtp-off` 4.0.3 i en kopia gav den 13/13 godkända och EXIT=0. Körd av byggaren 2026-11-20 i 1.3 med `xunit.v3.mtp-off` 4.0.3 (D37): Passed 13, Failed 0, EXIT=0 (commit 2c7b95c). |
-| K7-K11 | webbkommandona | Körda av byggaren 2026-11-20 i 1.5 (commit 0ea4b4a): alla gav EXIT=0; K11 gav 1 passed, 0 failed. K8 och K9 gav EXIT=0 även när de kördes efter K10. Körda igen av byggaren 2026-11-20 i 1.7 (commit 1ac1aef): K8–K11 gav alla EXIT=0; K11 gav 4 testfiler och 89 passed. Körs igen i varje senare webbuppgift. |
+| K7-K11 | webbkommandona | Körda av byggaren 2026-11-20 i 1.5 (commit 0ea4b4a): alla gav EXIT=0; K11 gav 1 passed, 0 failed. K8 och K9 gav EXIT=0 även när de kördes efter K10. Körda igen av byggaren 2026-11-20 i 1.7 (commit 1ac1aef): K8–K11 gav alla EXIT=0; K11 gav 4 testfiler och 89 passed. Körda av byggaren 2026-11-20 i 1.8 (commit e5237ad), enligt loggarna i `.scratch/logo/`: K8 gav ingen utdata efter skriptraden, K9 gav `All matched files use Prettier code style!`, K10 gav `✓ built in 208ms`, K11 gav `Test Files  6 passed (6)` och `Tests  123 passed (123)`; ingen av loggarna innehåller exitkoden. Körs igen i varje senare webbuppgift. |
 | K12 | `npm run test:e2e` | Okörd. Körs i 1.22. |
 | K13 | `npm run lighthouse` | Okörd. Körs i 1.23. |
 | K14-K17 | Compose | Okörda. `docker` saknas (koordinatorn 2026-11-20: `docker: command not found`). Körs i 1.4 när användaren har installerat Docker Desktop (A12). |
@@ -2133,10 +2217,12 @@ körts för de filerna med EXIT=0 och att varje otäckt rad är avgjord.
 | K24-K26 | `dev`, `preview` och `format` med kontrollerna i 5.1 | Körda av byggaren 2026-11-20 i 1.5: K25 gav 200 och K26 EXIT=0. K24 gav 200 på port 5174 med `--strictPort`, eftersom 5173 var upptagen av en annan process; koordinatorn godtog det som belägg, och K24 skrivs sedan dess med `<ledig port>` (5.1). |
 | K27 | Typkontrollens täckning: sonden `export const typeErrProbe: number = 'text';` per fall i `.scratch/tc`, sedan `timeout 600 npm run build` (5.1, "Beviset i 1.7") | Körd av byggaren i en kopia i 1.7-förstudien 2026-11-20: EXIT=2 med `TS2322` för vart och ett av `src/`, `tests/`, `e2e/`, `vite.config.ts` och `playwright.config.ts`. Körd igen av byggaren i 1.7 (2026-11-20, commit 1ac1aef) i en kopia av de incheckade filerna: EXIT=2 med `TS2322` för vart och ett av `src/`, `tests/`, `e2e/`, `vite.config.ts` och `playwright.config.ts`, och EXIT=0 utan sond. Krav: EXIT≠0 och `TS2322` med filens sökväg för varje fall. Granskarens körning i P3 (före ändringen): sonden i `tests/typeerr.test.ts` gav EXIT=0 i K8, K10 och K11 (LARDOMAR.md, posten om P3). |
 | K28 | Lint av `.mjs`: `scripts/probe.mjs` i `.scratch/tc`, sedan `timeout 300 npm run lint` (5.1, "Beviset i 1.7") | Körd av byggaren i en kopia i 1.7-förstudien 2026-11-20: EXIT=1 med `no-unused-vars` och 0 träffar på `no-undef`. Mutationen `globals: {}` gav `no-undef` för `console` och `process`, EXIT=1. Körd igen av byggaren i 1.7 (2026-11-20, commit 1ac1aef) i en kopia av de incheckade filerna: EXIT=1 med `no-unused-vars` och 0 träffar på `no-undef`; utan sond gav lint EXIT=0. Krav: EXIT≠0, `no-unused-vars` i utdatan och inget `no-undef`. |
-| K29 | `npm run test:coverage -- --coverage.include=<fil> ...` (5.1, "Täckning, K29") | Okörd; efter 1.7 fanns varken paketet eller skriptet. Körs första gången i 1.8, för `tests/support/contrast.ts` och `src/components/brand/Logo.tsx` (D54). |
+| K29 | `npm run test:coverage -- --coverage.include=<fil> ...` (5.1, "Täckning, K29") | Efter 1.7 fanns varken paketet eller skriptet. Körd av byggaren 2026-11-20 i 1.8 (commit e5237ad) för `tests/support/contrast.ts` och `src/components/brand/Logo.tsx` (D54), två gånger. Sista körningen (`.scratch/logo/k29-final.log`): `Test Files  6 passed (6)`, `Tests  123 passed (123)`, `No files with missing coverage.`, `2 files fully covered.`, Statements 100% (69/69), Branches 100% (49/49), Functions 100% (10/10), Lines 100% (68/68). Första körningen gav samma täckning med 122 test. Ingen otäckt rad fanns att avgöra. Loggen innehåller inte exitkoden, och utdatan från `npm view` och `npm install` för paketet (5.1) finns inte i underlaget; båda redovisas när K29 körs igen efter `setup.ts` från 1.8 (5.1, D60). |
 | - | Typsnittspaketen | Kontrollerade av byggaren i en kopia i 1.7-förstudien 2026-11-20: `@fontsource-variable/fraunces` 5.3.0 och `@fontsource-variable/inter` 5.3.0, båda med licens `OFL-1.1` och `font-family` `'Fraunces Variable'` respektive `'Inter Variable'`. Alla `url()` i paketens CSS pekade på lokala `./files/*.woff2`; sökningen efter `http` gav 0 träffar. Kontrollerade av byggaren i 1.7 (2026-11-20, commit 1ac1aef): `npm view` gav version 5.3.0 och licens `OFL-1.1` för båda paketen; `./index.css` exporteras via mönstret `"./*.css"`; `prettier --check` på `tokens.css`, `index.css` och `main.tsx`, maskinellt utdragna ur 4.6, gav EXIT=0. `font-family` ingick inte i byggarens redovisning i 1.7; arkitekten läste 2026-11-20 de installerade `web/node_modules/@fontsource-variable/fraunces/index.css` och `.../inter/index.css`: första `@font-face` har `font-family: 'Fraunces Variable';` respektive `font-family: 'Inter Variable';`, och båda paketens `package.json` har `"version": "5.3.0"`, `"license": "OFL-1.1"` och exporten `"./*.css"`. |
 | - | Spärren mot externa typsnittsvärdar, M1–M3 (4.3) | Körda av byggaren i 1.7 (2026-11-20, commit 1ac1aef) i kopian `.scratch/tc`, en i taget: M1, M2 och M3 gav alla EXIT=1 i K11, och varje gång var `fonts-local.test.ts` den enda fallerade testfilen. |
-| - | Låsta webbversioner | Låsta av byggaren 2026-11-20 i 1.5 (`--save-exact`): react och react-dom 19.3.1, vite 8.3.8, @vitejs/plugin-react 6.3.0, typescript 6.0.3, tailwindcss och @tailwindcss/vite 4.3.5, eslint och @eslint/js 9.39.5, typescript-eslint 8.73.0, eslint-plugin-react-hooks 7.1.1, eslint-plugin-react-refresh 0.5.8, eslint-plugin-jsx-a11y 6.10.2, globals 17.14.0, eslint-config-prettier 10.1.8, prettier 3.10.1, vitest 5.1.1, jsdom 31.0.1, @testing-library/react 16.3.3, @testing-library/dom 10.4.2, @testing-library/user-event 14.6.13, @testing-library/jest-dom 8.0.0, @types/react och @types/react-dom 19.3.0, @types/node 24.19.2. |
+| - | Låsta webbversioner | Låsta av byggaren 2026-11-20 i 1.5 (`--save-exact`): react och react-dom 19.3.1, vite 8.3.8, @vitejs/plugin-react 6.3.0, typescript 6.0.3, tailwindcss och @tailwindcss/vite 4.3.5, eslint och @eslint/js 9.39.5, typescript-eslint 8.73.0, eslint-plugin-react-hooks 7.1.1, eslint-plugin-react-refresh 0.5.8, eslint-plugin-jsx-a11y 6.10.2, globals 17.14.0, eslint-config-prettier 10.1.8, prettier 3.10.1, vitest 5.1.1, jsdom 31.0.1, @testing-library/react 16.3.3, @testing-library/dom 10.4.2, @testing-library/user-event 14.6.13, @testing-library/jest-dom 8.0.0, @types/react och @types/react-dom 19.3.0, @types/node 24.19.2. Låsta av byggaren 2026-11-20 i 1.8 (commit e5237ad, `web/package.json`): @playwright/test 1.65.1 (D56) och @vitest/coverage-v8 5.1.1 (D54). |
+| - | Logotypen, 1.8 (4.5) | Commit e5237ad (2026-11-20). Commitmeddelandet säger att märket mättes i den inbäddade JPEG:en (1560x1080) och att färgerna kontrollerades mot PNG:n. Måttabellen, skalan, Playwright-jämförelsen mot JPEG:en, färgjämförelsen mot PNG:n och `Get-FileHash` för `docs/brand/` (avsnitt 1) står inte här; de finns inte i underlaget arkitekten läste 2026-11-20. Mutationer enligt `.scratch/mutations.log`: L1-L18, G1-G6 och C1-C4 gav alla EXIT=1 med `Logo.test.tsx` eller `logo-colors.test.ts` som fallerad fil; C5 avbröts med `ANKARE GER 0 TRÄFFAR`. |
+| - | `*.pdf binary` i `.gitattributes` (avsnitt 10, D57) | Okörd. Raden saknades i `.gitattributes` efter commit e5237ad (arkitekten läste filen 2026-11-20). |
 | - | Versionslåsningar | Kontrollerade av byggaren 2026-11-20 med `npm view` och provinstallation: ESLint 10 med `eslint-plugin-jsx-a11y` 6.10.2 gav ERESOLVE, EXIT=1 (D39); `typescript-eslint` 8.73.0 kräver TypeScript `>=4.8.4 <6.1.0` (D40). |
 | - | Docker | Koordinatorn 2026-11-20: inte installerat än. Användaren installerar Docker Desktop själv. Se K14-K17. |
 | - | `git remote -v` | Koordinatorn 2026-11-20: remote `origin` finns och pekar på ett tomt GitHub-repo (adressen står bara i `docs/decisions.md` F4). `gh` saknas. |
@@ -2341,7 +2427,8 @@ Kvar är förutsättningar som inte är öppna frågor:
 - D41: `@types/node` installeras med `--save-exact` i en exakt version inom
   `^24` (24.19.2 i 1.5), eftersom projektet kör Node 24 (`web/.nvmrc`).
   (påverkat av lärdom: nej)
-- D42: `src/test/setup.ts` innehåller bara jest-dom. Stubbar för `matchMedia`
+- D42: `src/test/setup.ts` innehåller bara jest-dom (från 1.8 också
+  städningen, D60; inga stubbar). Stubbar för `matchMedia`
   och `IntersectionObserver` läggs i de testfiler som behöver dem, med start i
   1.12 och 1.13. Skäl: en global stub för `IntersectionObserver` skulle göra
   fall (d) i 6.9 ("`IntersectionObserver` saknas - då monteras den direkt")
@@ -2499,3 +2586,60 @@ Kvar är förutsättningar som inte är öppna frågor:
   och som inte är ett villkor i `contrast.ts`. (påverkat av lärdom: ja,
   LARDOMAR.md: "Skiljer sig `docs/ARKITEKTUR.md` från det koden faktiskt gör
   lämnas paketet tillbaka till arkitekten.")
+- D56: `@playwright/test` låses till 1.65.1, versionen som 1.8 installerade
+  med `--save-exact`, och står i fetstil i avsnitt 2 som undantag från regeln
+  om senaste stabila version. Senare uppgifter som använder paketet (1.14,
+  1.21, 1.22) installerar det inte igen; en uppgradering är ett eget
+  arkitektbeslut. Skäl: regeln om senaste version gäller när ett paket läggs
+  till, och utan låsningen i tabellen kan en senare uppgift läsa den som ett
+  krav att uppgradera, så att logojämförelsen i 1.8 och
+  responsivitetskontrollen i 1.22 görs med olika versioner. Bortvalt:
+  `npx playwright` utan devDependency (olåst version); att installera senaste
+  version i varje uppgift som använder Playwright. (påverkat av lärdom: ja,
+  LARDOMAR.md: "Ett test som kan bli rött på oförändrad kod är ett fel.")
+- D57: `.gitattributes` får raden `*.pdf binary` (avsnitt 10), som en del av
+  1.8. Skäl: 1.8 checkar in `docs/brand/logo-source.pdf`, som ska vara
+  byte-identisk med källfilen (avsnitt 1), och `* text=auto eol=lf` låter Git
+  gissa om en fil är text; en PDF som gissas som text får sina radslut
+  ändrade och slutar vara identisk. PNG, JPEG och typsnitt har redan
+  `binary`. Commit e5237ad checkade in PDF:en utan raden; kontrollen i
+  avsnitt 10 visar om bloben ändå är oförändrad. Bortvalt: att lita på
+  Gits gissning (oprövad för den här filen); Git LFS (ett verktyg till för en
+  fil). (påverkat av lärdom: ja, LARDOMAR.md: "Misstänks radslut: jämför
+  `git diff` med `git diff -w`.")
+- D58: `tests/logo-colors.test.ts` läser tokenvärdena med `readColorTokens`
+  och tolkar hex i både `tokens.css` och `favicon.svg` med `parseHex`, båda
+  importerade från `tests/support/contrast.ts`, och jämför tolkade värden.
+  Skäl: `tokens.css` skriver hex med gemener (4.6) och en jämförelse av text
+  skulle bero på skiftläge; `contrast.ts` har redan feltabellen C1-C9 och
+  egna tester. Testet är en `node`-fil i `tests/` eftersom det läser filer
+  med `node:fs`; `Logo.test.tsx` läser bara `favicon.svg` med `?raw`.
+  Bortvalt: en egen hex-tolkning i testfilen (en andra, oprövad kopia);
+  textjämförelse efter `toLowerCase()` (prövar inte att värdet är giltig hex).
+  (påverkat av lärdom: ja, LARDOMAR.md: "Innan ett typvillkor skrivs: sök
+  efter en befintlig hjälpare som avgör samma sak och återanvänd den.")
+- D59: Testfallen och klasserna som byggaren lade till i 1.8 utöver 4.5
+  skrivs in som facit i 4.5: fallen för `findHexColors` och avsnittet "Det
+  spärren inte fångar" i `logo-colors.test.ts`, de extra fallen i
+  `Logo.test.tsx` (bland dem textfärgerna `text-white`, `text-neutral-300`,
+  `text-neutral-600` och `text-primary-900` för ordmärke och tagline, som 4.5
+  inte angav) och layoutklasserna i `Logo.tsx`. Textfärgerna är par som
+  redan prövas i 4.2 (T1, T3, T5 och T12) när logotypen står på
+  `neutral-50` respektive `primary-900`. Ingen ändring i
+  koden. Bortvalt: att lämna tillbaka 1.8 för att ta bort dem (de prövar
+  beteende som 4.5 kräver eller som syns för användaren). (påverkat av lärdom:
+  ja, LARDOMAR.md: "Skiljer sig `docs/ARKITEKTUR.md` från det koden faktiskt
+  gör lämnas paketet tillbaka till arkitekten.")
+- D60: `src/test/setup.ts` registrerar `afterEach(cleanup)` för alla
+  testfiler, med innehållet i 5.1 ("`setup.ts` från 1.8"), och den lokala
+  städningen i `Logo.test.tsx` tas bort i samma ändring. Skäl: Vitest körs
+  utan `globals` (`vite.config.ts`), och då registrerar Testing Library ingen
+  städning själv; `Logo.test.tsx` fick därför en egen `afterEach(cleanup)` i
+  1.8, och varje komponenttest från 1.9 skulle behöva samma rad. Beviset är
+  mutationen i 5.1. Bortvalt: `globals: true` i `vite.config.ts` (gör
+  `describe`/`it` globala för alla testfiler och kräver globala typer i
+  tsconfig-filerna, för att få en enda rad); en `afterEach(cleanup)` per testfil (samma rad i varje
+  fil, och en glömd rad ger test som påverkar varandra). (påverkat av lärdom:
+  ja, LARDOMAR.md: "Skriv ingen tredje kopia av ett mönster eller en
+  hjälpare; gör en gemensam." och "När en ny funktion tar över en gammal tas
+  den gamla bort i samma paket")
