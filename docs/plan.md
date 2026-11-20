@@ -37,8 +37,10 @@ Varje punkt citerar en regel som finns i `LARDOMAR.md`.
 
 ## Arbetsgång
 
-- Varje uppgift: implementera → tester → bygge, lint och test gröna → bocka av
-  här → en git-commit i formen `typ(område): beskrivning`.
+- Varje uppgift: implementera → tester → bygge, lint och test gröna → från
+  1.8 täckning (K29) för nya och ändrade filer enligt `docs/ARKITEKTUR.md` 5.1
+  och avsnitt 11 → bocka av här → en git-commit i formen
+  `typ(område): beskrivning`.
 - **Beslut (granskning per arbetspaket):** Fas 1 är indelad i arbetspaketen
   P0–P8 med flera commit-stora uppgifter i varje. `granskare` körs efter varje
   arbetspaket, inte efter varje commit. Skälet är att uppgifterna i ett paket
@@ -95,7 +97,7 @@ Uppgifterna körs i tabellens ordning. 1.5b har samma namn som i
 | 1.6 | [x] | GitHub Actions CI: bygg, lint och test för `/api` och `/web` på varje PR. | Byggare | Ett körningsresultat från GitHub är grönt (fjärrepot enligt F4). Commit gjord. |
 | **P4** | | **Designgrund** | | |
 | 1.7 | [x] | Design tokens i Tailwind-konfigen: färger (A1, A11), typsnitten Fraunces och Inter självhostade (A2), avstånd och radier, med `tokens.css`, `index.css` (bas-stil för `body`) och `main.tsx` ordagrant enligt `docs/ARKITEKTUR.md` 4.6. Testhjälparen `tests/support/contrast.ts` med feltabellen C1-C9 i 4.2 och egen testfil `tests/support/contrast.test.ts`, kontrasttestet `tests/tokens-contrast.test.ts` (4.2) och spärren mot externa typsnittsvärdar `tests/fonts-local.test.ts` (4.3). Dessutom typkontroll av `tests/`, `e2e/` och `playwright.config.ts` (nya `tsconfig.test.json`, ändrade `tsconfig.json` och `tsconfig.node.json`) och ESLint-regler med Node-globaler för `.js`/`.mjs`, med exakt det innehåll som står i `docs/ARKITEKTUR.md` 5.1 ("Typkontroll och lint av alla kataloger (1.7)"). `tsconfig.test.json` checkas in i samma commit som första filen i `tests/`. | Byggare | `tokens-contrast.test.ts` visar WCAG AA-kontrast för paren i `docs/ARKITEKTUR.md` 4.2 och X1 < 3. `contrast.test.ts` prövar varje rad C1-C9 med hela meddelandet. Typsnitten laddas lokalt, inte från en tredje part: `fonts-local.test.ts` är grön och föll (EXIT≠0) för varje mutation i 4.3, och paketens `font-family`, `license` och export av `./index.css` är redovisade (4.3). K27 ger EXIT≠0 med `TS2322` för varje fall (`src/`, `tests/`, `e2e/`, `vite.config.ts`, `playwright.config.ts`), K28 ger EXIT≠0 med `no-unused-vars` och utan `no-undef`, och därefter ger K8–K11 EXIT=0 i `web/` (utdata inklistrad). Commit gjord. |
-| 1.8 | [ ] | Logotypen som SVG och favicon. Formen ritas efter mått som byggaren tar i den JPEG som är inbäddad i PDF:en (1560×1080). Färgerna kontrolleras mot PNG:n. Det finns ingen vektorkälla (A3, A13). Playwright installeras här, där det behövs första gången. | Byggare | SVG:n använder bara tokenfärger och har en tillgänglig titel. Måtten från JPEG:en och jämförelsen mot JPEG:en (form) och PNG:n (färg) är redovisade. Commit gjord. |
+| 1.8 | [ ] | Logotypen som SVG och favicon. Formen ritas efter mått som byggaren tar i den JPEG som är inbäddad i PDF:en (1560×1080). Färgerna kontrolleras mot PNG:n. Det finns ingen vektorkälla (A3, A13). Playwright installeras här, där det behövs första gången. Täckningspaketet `@vitest/coverage-v8` 5.1.1 och skriptet `test:coverage` läggs till här enligt `docs/ARKITEKTUR.md` 5.1 ("Täckning, K29", D54). | Byggare | SVG:n använder bara tokenfärger och har en tillgänglig titel. Måtten från JPEG:en och jämförelsen mot JPEG:en (form) och PNG:n (färg) är redovisade. K29 har körts för `tests/support/contrast.ts` och `src/components/brand/Logo.tsx` med EXIT=0, och varje otäckt rad är avgjord som onåbar (borttagen) eller oprövad (test skrivet), med utdata inklistrad. Commit gjord. |
 | **P5** | | **Komponentbibliotek i `/web/src/components/ui` och app-skal** | | |
 | 1.9 | [ ] | Button och Input. | Byggare | Tester täcker tillstånd, fokusmarkering, tangentbord och etiketter. Commit gjord. |
 | 1.10 | [ ] | Card, Badge, Skeleton och EmptyState. | Byggare | Tester täcker varianterna i `docs/ARKITEKTUR.md`. Skeleton respekterar `prefers-reduced-motion`. Commit gjord. |
@@ -136,7 +138,8 @@ Uppgifterna körs i tabellens ordning. 1.5b har samma namn som i
 
 - **Docker hinner inte installeras före 1.4.** Då gäller beslutet under
   "Arbetsgång": 1.4 blir ett eget paket, P2b, och Fas 1 kan inte bli klar
-  förrän det är godkänt. Vi märker det när 1.3 är klar.
+  förrän det är godkänt. När 1.3 blev klar fanns Docker inte (koordinatorn
+  2026-11-20, `docs/ARKITEKTUR.md` avsnitt 12), och P3 startade före 1.4.
 - **Kodarna i `ffmpeg-static` saknas (K18 i `docs/ARKITEKTUR.md`).** Då blockeras
   1.12. Vi märker det i kontrollen före 1.12, och det lämnas då tillbaka till
   arkitekten.

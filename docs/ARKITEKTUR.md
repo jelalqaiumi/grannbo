@@ -190,6 +190,7 @@ Regler för strukturen:
 | ESLint (flat config) `eslint` och `@eslint/js` **9.39.5** (D39) med `typescript-eslint`, `eslint-plugin-react-hooks`, `eslint-plugin-react-refresh`, `eslint-plugin-jsx-a11y`, `globals`, `eslint-config-prettier` | Vites mall + jsx-a11y, som fångar saknad alt-text, felaktiga ARIA-attribut och fokusfel redan i lint. Specen kräver WCAG AA. | Ingen a11y-lint (fel hittas först i Lighthouse). |
 | Prettier 3 | Formatering, kontrolleras i CI med `--check`. | - |
 | Vitest + `jsdom` + `@testing-library/react` + `@testing-library/dom` + `@testing-library/user-event` + `@testing-library/jest-dom` | Specen. | Jest. |
+| `@vitest/coverage-v8` **5.1.1** (devDependency, installeras i 1.8, D54) | LARDOMAR kräver `vitest --coverage` på nya filer. Vitest kräver ett täckningspaket med exakt samma version som Vitest själv: `vitest` 5.1.1 har peer-kravet `"@vitest/coverage-v8": "5.1.1"` i `web/package-lock.json`. V8 mäter med motorns inbyggda täckning, utan att källan transformeras. | `@vitest/coverage-istanbul` (instrumenterar källan, ett steg till mellan testet och koden). Täckning i CI med procentgränser (en procentsats avgör inte varje otäckt rad, vilket regeln kräver). |
 | `@playwright/test` (devDependency, installeras i 1.8), bara lokalt i Fas 1 | Används till: logojämförelsen i 1.8, rastring av SVG i medieskriptet (1.14, 1.21) och responsivitetskontrollen i 1.22. Det enda pålitliga sättet att mäta "ingen vågrät rullning" i en riktig webbläsare vid 375/768/1440 px och ta helsidesbilder per bredd. Används med `channel: 'chrome'` (Chrome finns, K19). | Manuell kontroll i DevTools (går inte att upprepa eller granska). Playwright i CI (ökar CI-tiden och kräver webbläsarinstallation; tas upp i Fas 4). |
 | `lighthouse` (devDependency) | Specens klarkriterium. Som devDependency blir versionen låst i lockfilen och mätningen går att upprepa. | `npx lighthouse@latest` (olåst version), PageSpeed Insights (kräver publicerad sida). |
 | Typsnitt: Fraunces (rubriker) via `@fontsource-variable/fraunces` och Inter (brödtext) via `@fontsource-variable/inter` (F5) | A2: självhostat, inget hämtas från tredje part. Båda är OFL, som uttryckligen tillåter spridning. Fontsource-paketen buntas av Vite och serveras från samma origin. | Google Fonts-CDN. Typsnitt som inte är OFL (F5). |
@@ -348,10 +349,11 @@ Bakgrunden är logotypens `#F4F6F9`, inte en varm off-white som specen
 specen här (A1). Herons gradient går från `overlay` till `overlay-strong`, så
 ingen punkt bakom heron-texten är ljusare än `overlay`.
 
-De uträknade kvoterna för logotypens basfärger och `accent-700` står i avsnitt
-12. Övriga steg (`primary-800`, `primary-100`, `accent-100`, `neutral-500`,
-`success-*`, `danger-*`, overlay) är valda av arkitekten med marginal men inte
-uträknade. Facit för alla par är testet i 1.7. Klarar ett par inte kravet ändrar
+Kvoterna för alla par i 4.2, också för stegen som arkitekten valde
+(`primary-800`, `primary-100`, `accent-100`, `neutral-500`, `success-*`,
+`danger-*`, overlay), räknades ut oavrundade av testet i 1.7 (byggarens
+körning 2026-11-20) och står i avsnitt 12, K23. Facit för alla par är testet
+i 1.7. Klarar ett par inte kravet ändrar
 byggaren **inte** färgen själv utan lämnar tillbaka till arkitekten.
 
 ### 4.2 Kontrastpar som testet i 1.7 kräver
@@ -476,7 +478,9 @@ så resultatet är alltid ett giltigt `Rgb` med heltal (den färg skärmen visar
 T18 och N5 räknas på den avrundade färgen och kräver ≥ 4,5 respektive ≥ 3;
 testet asserterar inte kvoten exakt utan skriver ut den med sex decimaler.
 Med oavrundad komposition gav T18 5.483893 (byggarens körning i en kopia,
-1.7-förstudien 2026-11-20); kvoten med avrundad komposition redovisas i 1.7.
+1.7-förstudien 2026-11-20). Med avrundad komposition gav T18 och N5 båda
+5.484144, och `composite` gav `{ r: 95, g: 106, b: 122 }` (byggarens körning
+i 1.7, 2026-11-20, avsnitt 12, K23).
 
 **`relativeLuminance` och `contrastRatio`.** Kanal `c/255`; `≤ 0,04045` ger
 `c/12,92`, annars `((c + 0,055)/1,055) ** 2,4`; `L = 0,2126 R + 0,7152 G + 0,0722 B`.
@@ -493,11 +497,15 @@ med `toThrow(new Error('<hela texten>'))`. Testfall:
   `'/ 0.85'`, `'/ 0'` och `'/ 1'` godtas; `'rgb(255 255 255 / 1)'` godtas;
   C3 för `256` i R, i G och i B (ett fall per kanal); C2 för
   `'rgb(27, 42, 65, 0.7)'`, `'rgba(27 42 65 / 0.7)'`, `'rgb(27 42 65 / 1.0)'`,
-  `'rgb(27 42 65 / 0.855)'`, `'rgb(27 42 65)'`.
+  `'rgb(27 42 65 / 0.855)'`, `'rgb(27 42 65)'`, `' rgb(27 42 65 / 0.7)'`
+  (inledande blanksteg) och `'rgb(27 42 65 / 0.7) '` (avslutande blanksteg).
 - `composite`: `overlay` över vitt ger `{ r: 95, g: 106, b: 122 }`; `a: 0` ger
   `bottom`; `a: 1` ger `top`; C5 för `a` = `-0.01`, `1.01` och `NaN`, och
   inget fel för `0` och `1`; C4 för `top` med `r: 256`, för `bottom` med
-  `g: -1` och för `top` med `b: 1.5`.
+  `g: -1` och för `top` med `b: 1.5`. Kontrollordningen prövas med två fall:
+  `top` `{ r: 256, g: 42, b: 65, a: 2 }` över vitt ger C4 (C4 för `top` före
+  C5), och `top` `{ r: 27, g: 42, b: 65, a: 2 }` över
+  `{ r: 255, g: -1, b: 255 }` ger C5 (C5 före C4 för `bottom`).
 - `relativeLuminance`: svart ger `0`; `{255,0,0}`, `{0,255,0}`, `{0,0,255}` ger
   `toBeCloseTo` `0.2126`, `0.7152`, `0.0722` (12 decimaler); gränsen 0,04045
   ligger mellan heltalskanalerna 10 och 11 (10/255 = 0,0392, 11/255 = 0,0431;
@@ -505,7 +513,7 @@ med `toThrow(new Error('<hela texten>'))`. Testfall:
   `10 / 255 / 12.92` och `{11,11,11}` med `((11 / 255 + 0.055) / 1.055) ** 2.4`
   (`toBeCloseTo`, 12 decimaler); C4 för `256`, `-1` och `1.5` i var sin kanal (r, g, b).
 - `contrastRatio`: svart mot vitt `toBeCloseTo(21, 10)` (det oavrundade värdet
-  redovisas i 1.7; ingen exakthet påstås här), samma färg mot sig själv
+  redovisades inte i 1.7; ingen exakthet påstås här), samma färg mot sig själv
   `toBe(1)`, `contrastRatio(a, b)` lika med `contrastRatio(b, a)` för
   `#1B2A41`/`#F4F6F9`, och C4 för andra argumentet.
 - `readColorTokens`: en text med nollställningen, en hex-rad, en rgb-rad och en
@@ -534,16 +542,16 @@ gäller CSS, 5.1.)
   `@fontsource-variable/inter/index.css` (filen ordagrant i 4.6). Sökvägen
   slutar på `.css`, så att importen matchar deklarationen `*.css` i
   `vite/client`-typerna och `tsc -b` inte behöver hitta typer för ett paket
-  som bara innehåller CSS. Byggaren läser `exports` i paketens `package.json`
-  i 1.7 och redovisar att `./index.css` (direkt eller via ett mönster) är
-  exporterad; är den inte det lämnas det tillbaka till arkitekten. Inga egna
+  som bara innehåller CSS. `./index.css` ska vara exporterad i `exports` i
+  paketens `package.json` (direkt eller via ett mönster); i 1.7 (2026-11-20)
+  var den det via mönstret `"./*.css"` (avsnitt 12). Saknas exporten efter en
+  uppdatering av paketen lämnas det tillbaka till arkitekten. Inga egna
   `@font-face` och inga typsnittsfiler i `src/`.
 - Typsnittsnamnen ovan (`Fraunces Variable`, `Inter Variable`) ska stämma med
-  `font-family` i paketens CSS. Byggaren kontrollerar det i
-  `node_modules/@fontsource-variable/*/index.css` i 1.7 och redovisar raden.
-  Skiljer de sig lämnas det tillbaka till arkitekten. (I 1.7-förstudien
-  2026-11-20 gav paketen 5.3.0 `'Fraunces Variable'` respektive
-  `'Inter Variable'`, se avsnitt 12.)
+  `font-family` i `node_modules/@fontsource-variable/*/index.css`. Skiljer de
+  sig lämnas det tillbaka till arkitekten. I 1.7-förstudien 2026-11-20 gav
+  paketen 5.3.0 `'Fraunces Variable'` respektive `'Inter Variable'`, och de
+  installerade paketen efter 1.7 hade samma rader (avsnitt 12).
 - Inga `<link>` till externa typsnittsvärdar. Spärren ligger i
   **`web/tests/fonts-local.test.ts`** (`// @vitest-environment node`). Den
   läser `index.html` och varje `.css`-fil under `src/`, vald rekursivt med
@@ -553,23 +561,26 @@ gäller CSS, 5.1.)
   `/fonts\.googleapis|fonts\.gstatic/i` och kräver
   `expect(hits).toEqual([])`, där varje träff är `'<sökväg relativt web/, med />: <träff>'`.
   För att en tom genomgång inte ska bli grön kräver testet också att listan
-  över lästa filer innehåller `src/styles/index.css` och `src/styles/tokens.css`.
+  över lästa filer innehåller `index.html`, `src/styles/index.css` och
+  `src/styles/tokens.css`, och att varje läst fil utom `index.html` slutar på
+  `.css` (så att urvalet inte tyst vidgas eller byts ut).
   Mutationer i kopian `.scratch/tc` (5.1, "Beviset i 1.7"), en i taget och
   borttagen före nästa; var och en ska ge EXIT≠0 i K11
   (`(cd .scratch/tc && timeout 900 npm test)`) med `fonts-local.test.ts` som
   enda fallerade testfil:
-  `@import url('https://fonts.googleapis.com/css2?family=Inter');` först i
-  `src/styles/index.css`; en ny fil `src/styles/probe/deep.css` med
-  `/* FONTS.GSTATIC.COM */`; raden
+  M1 `@import url('https://fonts.googleapis.com/css2?family=Inter');` först i
+  `src/styles/index.css`; M2 en ny fil `src/styles/probe/deep.css` med
+  `/* FONTS.GSTATIC.COM */`; M3 raden
   `<link rel="stylesheet" href="https://Fonts.Googleapis.com/css2">` i `index.html`.
+  Utfallet i 1.7 står i avsnitt 12 ("Spärren mot externa typsnittsvärdar, M1–M3").
   **Det spärren inte fångar:** andra typsnittsvärdar (t.ex. Typekit, Bunny
   Fonts); en extern URL i en `.ts`/`.tsx`-fil eller i `public/`; CSS-escapes
   eller procentkodning av värdnamnet (`fonts\2e googleapis`,
   `fonts%2Egoogleapis`). Den fångar för mycket i ett fall: värdnamnet i en
   kommentar ger också träff.
 - Typsnittens licens står under rubriken `## Typsnitt` i `docs/media-credits.md`,
-  som skapas i 1.20 (format i avsnitt 8). I 1.7 redovisar byggaren bara
-  `license` ur paketens `package.json`.
+  som skapas i 1.20 (format i avsnitt 8). I 1.7 redovisades bara licensen
+  (`OFL-1.1` för båda paketen, avsnitt 12).
 
 Rubrikskala (Tailwinds standardstorlekar, mobil först):
 
@@ -752,7 +763,8 @@ createRoot(document.getElementById('root')!).render(
 Ger K9 (`format:check`) avvikelse i någon av de tre filerna ändras inte
 innehållet för hand och inte med K26; det lämnas tillbaka till arkitekten med
 Prettiers utdata. Samma gäller om K10 inte klarar `@import './tokens.css'`
-eller typsnittsimporterna.
+eller typsnittsimporterna. (I 1.7, 2026-11-20, gav `prettier --check` på de
+tre filerna, maskinellt utdragna ur 4.6, EXIT=0; avsnitt 12.)
 
 ## 5. Gränssnitt
 
@@ -784,6 +796,7 @@ Alla körs med yttre tidsgräns i Git Bash. Status per kommando: avsnitt 12.
 | K25 | `npm run preview` | `vite preview --port 4173 --strictPort` (1.5) |
 | K26 | `timeout 300 npm run format` | `prettier --write .` (1.5) |
 | K22 | `timeout 900 npm run media:placeholders` | `node scripts/media/make-placeholders.mjs` (avsnitt 8; körs inte i CI) |
+| K29 | `timeout 900 npm run test:coverage -- --coverage.include=<fil> [--coverage.include=<fil> ...]` | `vitest run --coverage --coverage.provider=v8 --coverage.reporter=text` (från 1.8, D54; körs inte i CI) |
 
 `vite.config.ts` har ett `test`-block med `environment: 'jsdom'`,
 `setupFiles: ['./src/test/setup.ts']` och
@@ -816,9 +829,36 @@ filen ändå. Lokalt körs K8 och K9 en gång till efter K10-K13, så att genere
 kataloger syns om de inte är ignorerade.
 
 **Skripten per uppgift.** `package.json` får i 1.5 skripten `dev`, `build`,
-`preview`, `lint`, `format`, `format:check` och `test`. `media:placeholders`
-läggs till i 1.12, `test:e2e` i 1.22 och `lighthouse` i 1.23; inget av dem
-finns i 1.5.
+`preview`, `lint`, `format`, `format:check` och `test`. `test:coverage`
+läggs till i 1.8, `media:placeholders` i 1.12, `test:e2e` i 1.22 och
+`lighthouse` i 1.23; inget av dem finns i 1.5.
+
+**Täckning, K29 (från 1.8, D54).** Körs lokalt i `web/`, inte i CI.
+`vite.config.ts` ändras inte för det: inget `coverage`-block och inga
+procentgränser; allt står i skriptet och på kommandoraden.
+- Urval: varje `.ts`/`.tsx`-fil under `src/` och `tests/support/` som
+  uppgiften skapar eller ändrar, utom testfiler (`*.test.ts`, `*.test.tsx`),
+  `src/main.tsx` (ingångspunkt som inget test importerar) och
+  `src/test/setup.ts`. Varje fil i urvalet ges som ett eget
+  `--coverage.include=<sökväg relativt web/>`.
+- Utanför urvalet, med skäl: `.mjs`-skript, `vite.config.ts`,
+  `playwright.config.ts` och `e2e/` körs inte av Vitest och kan inte mätas av
+  K29; de prövas av sina egna kommandon (K8, K10, K12, K13, K22).
+- Installation i 1.8 (arbetskatalog `web/`): först
+  `timeout 120 npm view @vitest/coverage-v8@5.1.1 version peerDependencies`,
+  som ska visa `5.1.1` och peer-kravet `vitest: 5.1.1` (annars lämnas det
+  tillbaka till arkitekten), sedan
+  `timeout 900 npm install --save-dev --save-exact @vitest/coverage-v8@5.1.1`.
+  Utdatan från båda redovisas.
+- Redovisning: texttabellen ur utdatan och `EXIT=<kod>` ordagrant. För varje
+  otäckt rad (kolumnen `Uncovered Line #s`) skrivs en rad: `<fil>:<rad>` och
+  antingen "onåbar, borttagen" eller "oprövad, test skrivet: <testnamn>".
+  Därefter körs K29 igen, och den sista körningen redovisas.
+- 1.8 kör K29 också för `tests/support/contrast.ts` (skapad i 1.7, före
+  K29), så att hela P4 är mätt före granskningen.
+- Ger `--coverage.include` eller `--coverage.provider` fel i Vitest 5.1.1
+  ändras inte skriptet på egen hand; det lämnas tillbaka till arkitekten med
+  utdatan.
 
 **Kontrollen av skripten i 1.5** (arbetskatalog `web/`, Git Bash):
 - K26 `format` körs, och därefter ger K9 `format:check` EXIT=0.
@@ -1086,6 +1126,9 @@ körs i Node, därför `globals.node` och inte `globals.browser`.
   tagits bort: mutationerna i 4.3 (under `fonts-local.test.ts`), en i taget.
   Redovisa per mutation sista raderna och `EXIT=<kod>` ordagrant.
 - Kopian `.scratch/tc` tas bort efteråt (`rm -rf .scratch/tc`).
+
+Utfallen av beviset i 1.7 står i avsnitt 12 (K27, K28 och "Spärren mot
+externa typsnittsvärdar, M1–M3").
 
 **Compose** (arbetskatalog roten, `.env` kopierad från `.env.example`):
 
@@ -2035,7 +2078,9 @@ eftersom den använder `Logo` (1.8) och `EmptyState` (1.10). "Skapar" är filer,
 paket och routes som uppgiften lägger till; "Använder" är det den förutsätter, med uppgiften som skapar det.
 Ingen uppgift använder något som en senare uppgift skapar. Varje fil i
 mappstrukturen har exakt en skapande uppgift; senare uppgifter som ändrar en
-fil står under "Använder".
+fil står under "Använder". Från 1.8 ingår i "Klar när" för varje uppgift som
+skapar eller ändrar en fil i K29:s urval (5.1, "Täckning, K29") att K29 har
+körts för de filerna med EXIT=0 och att varje otäckt rad är avgjord.
 
 | # | Krav i den här filen | Skapar | Använder |
 |---|----------------------|--------|----------|
@@ -2047,7 +2092,7 @@ fil står under "Använder".
 | 1.5 | Avsnitt 2 (webbraderna och versionslåsningarna D39-D41), 5.1 (K7-K11, ignoreringslistorna, "Skripten per uppgift", "Kontrollen av skripten i 1.5" med K24-K26, och "Innehåll som 1.5 skapar"), struktur i avsnitt 1. Första testet `src/App.test.tsx`: heading level 1 med namnet "Grannbo". Versioner och avvikelser från create-vite-mallens tsconfig redovisas. | `web/.nvmrc`, `package.json` (skripten `dev`, `build`, `preview`, `lint`, `format`, `format:check`, `test`), `package-lock.json`, `vite.config.ts`, `tsconfig.json`, `tsconfig.app.json`, `tsconfig.node.json`, `eslint.config.js`, `.prettierrc.json`, `.prettierignore`, `index.html` (`lang`, `charset`, `viewport`, `<title>`), `src/main.tsx` (typsnittsimporterna läggs till i 1.7), `src/App.tsx`, `src/App.test.tsx`, `src/styles/index.css` (`@import 'tailwindcss';`), `src/test/setup.ts` (bara jest-dom) | - |
 | 1.6 | Avsnitt 5.4. Kräver push till remote `origin` (F4) och en grön körning av båda jobben på GitHub, med körningens resultat redovisat. | `.github/workflows/ci.yml` | `api/` (1.3), `web/` (1.5) |
 | 1.7 | Avsnitt 4.1-4.4, 4.2 (alla par T1-T19, N1-N5 och X1, feltabellen C1-C9, `readColorTokens`, `composite` och `contrast.test.ts`), 4.3 (typsnitten och `fonts-local.test.ts`), 4.6 (`tokens.css`, `index.css` och `main.tsx` ordagrant), K23. Typsnitt: Fraunces och Inter (F5), som `dependencies`. Avsnitt 5.1 "Typkontroll och lint av alla kataloger (1.7)": tsconfig-filerna och `eslint.config.js` får exakt det innehåll som står där, och `tsconfig.test.json` checkas in i samma commit som första filen i `tests/`. Klar när: `tokens-contrast.test.ts` visar WCAG AA-kontrast för paren i 4.2 och X1 < 3; `contrast.test.ts` prövar varje rad C1-C9 med hela meddelandet; `fonts-local.test.ts` är grön och föll (EXIT≠0) för varje mutation i 4.3; paketens `font-family`, `license` och export av `./index.css` är redovisade (4.3); K27 ger EXIT≠0 med `TS2322` för varje fall i tabellen (`src/`, `tests/`, `e2e/`, `vite.config.ts`, `playwright.config.ts`), K28 ger EXIT≠0 med `no-unused-vars` och utan `no-undef`, och därefter ger K8–K11 EXIT=0 i `web/`, med utdata inklistrad. Commit gjord. | `src/styles/tokens.css`, `tests/support/contrast.ts`, `tests/support/contrast.test.ts`, `tests/tokens-contrast.test.ts`, `tests/fonts-local.test.ts`, `tsconfig.test.json`, paketen `@fontsource-variable/fraunces` och `@fontsource-variable/inter` | `index.css`, `main.tsx`, `tsconfig.json`, `tsconfig.node.json`, `eslint.config.js` (1.5) |
-| 1.8 | Avsnitt 4.5 (A3, A13). Favicon-raden i `index.html` (7.10). | `src/components/brand/Logo.tsx`, `Logo.test.tsx`, `tests/logo-colors.test.ts`, `public/favicon.svg`, `docs/brand/logo-source.pdf`, `docs/brand/logo-source.png`, paketet `@playwright/test` | `tokens.css` (1.7), `index.html` (1.5) |
+| 1.8 | Avsnitt 4.5 (A3, A13). Favicon-raden i `index.html` (7.10). Avsnitt 5.1 "Täckning, K29" (D54): `@vitest/coverage-v8` 5.1.1 och skriptet `test:coverage`. Klar när: SVG:n använder bara tokenfärger och har en tillgänglig titel; måtten från JPEG:en och jämförelsen mot JPEG:en (form) och PNG:n (färg) är redovisade; K29 har körts för `tests/support/contrast.ts` och `src/components/brand/Logo.tsx` med EXIT=0, och varje otäckt rad är avgjord som onåbar (borttagen) eller oprövad (test skrivet), med utdata inklistrad. Commit gjord. | `src/components/brand/Logo.tsx`, `Logo.test.tsx`, `tests/logo-colors.test.ts`, `public/favicon.svg`, `docs/brand/logo-source.pdf`, `docs/brand/logo-source.png`, paketen `@playwright/test` och `@vitest/coverage-v8`, skriptet `test:coverage` | `tokens.css` och `tests/support/contrast.ts` (1.7), `index.html` och `package.json` (1.5) |
 | 1.9 | Avsnitt 6.1, 6.2. `ButtonLink` med `to` renderar React Routers `<Link>`, så paketet installeras här, och testerna renderar i `MemoryRouter`. | `src/lib/cn.ts`, `ui/Button.tsx`, `ui/Input.tsx` (+ tester), `ui/index.ts`, paketet `react-router` | `tokens.css` (1.7) |
 | 1.10 | Avsnitt 6.3-6.6. | `ui/Card.tsx`, `ui/Badge.tsx`, `ui/Skeleton.tsx`, `ui/EmptyState.tsx` (+ tester) | `cn`, `ui/index.ts` (1.9) |
 | 1.11 | Avsnitt 6.7, 6.8. | `ui/Toast.tsx`, `ui/Accordion.tsx` (+ tester), ikonerna chevron och stäng i `components/icons/` | `cn`, `ui/index.ts` (1.9) |
@@ -2076,7 +2121,7 @@ fil står under "Använder".
 | K4 | `dotnet build Grannbo.slnx -c Release --no-restore` | Körd av byggaren 2026-11-20 i 1.3: EXIT=0, 0 varningar. |
 | K5 | `dotnet format Grannbo.slnx --verify-no-changes --no-restore` | Körd av byggaren 2026-11-20 i 1.3: EXIT=0. `.slnx` gick att läsa. |
 | K6 | `dotnet test Grannbo.slnx -c Release --no-build` | Med `xunit.v3` 4.0.3 gav K6 EXIT=1 (felet i D37). Med `xunit.v3.mtp-off` 4.0.3 i en kopia gav den 13/13 godkända och EXIT=0. Körd av byggaren 2026-11-20 i 1.3 med `xunit.v3.mtp-off` 4.0.3 (D37): Passed 13, Failed 0, EXIT=0 (commit 2c7b95c). |
-| K7-K11 | webbkommandona | Körda av byggaren 2026-11-20 i 1.5 (commit 0ea4b4a): alla gav EXIT=0; K11 gav 1 passed, 0 failed. K8 och K9 gav EXIT=0 även när de kördes efter K10. Körs igen i varje senare webbuppgift. |
+| K7-K11 | webbkommandona | Körda av byggaren 2026-11-20 i 1.5 (commit 0ea4b4a): alla gav EXIT=0; K11 gav 1 passed, 0 failed. K8 och K9 gav EXIT=0 även när de kördes efter K10. Körda igen av byggaren 2026-11-20 i 1.7 (commit 1ac1aef): K8–K11 gav alla EXIT=0; K11 gav 4 testfiler och 89 passed. Körs igen i varje senare webbuppgift. |
 | K12 | `npm run test:e2e` | Okörd. Körs i 1.22. |
 | K13 | `npm run lighthouse` | Okörd. Körs i 1.23. |
 | K14-K17 | Compose | Okörda. `docker` saknas (koordinatorn 2026-11-20: `docker: command not found`). Körs i 1.4 när användaren har installerat Docker Desktop (A12). |
@@ -2084,12 +2129,13 @@ fil står under "Använder".
 | K19 | Finns Chrome: `Test-Path "C:\Program Files\Google\Chrome\Application\chrome.exe"` | Kontrollerad av koordinatorn 2026-11-20: Chrome finns på `C:\Program Files\Google\Chrome\Application\chrome.exe`. Playwright använder `channel: 'chrome'`. |
 | K20 | `git check-ignore -v <fil>` per fil i avsnitt 10 | Körd av byggaren 2026-11-20 i 1.2 (P1, commit 6b6ecde). Alla 14 filer som ska ignoreras gav exit 0, bland dem `LARDOMAR.arkiv.md`, `PROMPT-grannbo.md` och `.claude/x`. `LARDOMAR.md` och `.env.example` gav exit 1. `git status --short --ignored` efter sista commit visade bara `!! LARDOMAR.arkiv.md` och `!! PROMPT-grannbo.md`. |
 | K21 | Längd och strömmar (från `web/`): `timeout 120 node -e "require('child_process').spawnSync(require('ffmpeg-static'),['-hide_banner','-i',process.argv[1],'-f','null','-'],{stdio:'inherit'})" public/media/hero-drone.<ext>` | Okörd. Körs i 1.12 för `webm` och `mp4`. Utdatan ska visa `Duration` mellan 10 och 20 s och ingen rad `Stream ... Audio`. (ffprobe ingår inte i `ffmpeg-static`.) |
-| K22 | `npm run media:placeholders` | Okörd. Körs i 1.12 (hero-filerna), 1.14 (lokalbilderna) och 1.21 (`og-image.jpg`). |
-| K23 | Kontrastkvoter för basfärgerna, WCAG-formeln i Node | Uträknade av koordinatorn 2026-11-20: `#E38B5C`/`#F4F6F9` = 2.39; `#E38B5C`/`#1B2A41` = 5.58; `#9A4A28`/`#F4F6F9` = 5.73; `#1B2A41`/`#F4F6F9` = 13.34; `#475569`/`#F4F6F9` = 7.00. Avrundade till två decimaler; ingen av dem ligger nära en gräns. Testet i 1.7 räknar om dem oavrundade (par X1, T19, T8, T1, T3). Byggarens körning i en kopia, 1.7-förstudien 2026-11-20, oavrundade: T1 13.339238, T7 5.579852, T8 5.731660, T18 5.483893 (oavrundad komposition; 4.2 föreskriver avrundad), N1 3.794712, N2 3.505020, X1 2.390608. |
+| K22 | `npm run media:placeholders` | Okörd. Körs i 1.12 (hero-filerna), 1.14 (lokalbilderna) och 1.21 (`og-image.jpg`). || K23 | Kontrastkvoter för basfärgerna, WCAG-formeln i Node | Uträknade av koordinatorn 2026-11-20: `#E38B5C`/`#F4F6F9` = 2.39; `#E38B5C`/`#1B2A41` = 5.58; `#9A4A28`/`#F4F6F9` = 5.73; `#1B2A41`/`#F4F6F9` = 13.34; `#475569`/`#F4F6F9` = 7.00. Avrundade till två decimaler; ingen av dem ligger nära en gräns. Testet `tokens-contrast.test.ts` räknade om dem oavrundade i 1.7 (par X1, T19, T8, T1, T3). Byggarens körning i en kopia, 1.7-förstudien 2026-11-20: T18 5.483893 med oavrundad komposition (4.2 föreskriver avrundad). Byggarens körning i 1.7 (2026-11-20, commit 1ac1aef), oavrundade kvoter med avrundad komposition för T18 och N5: T1 13.339238, T2 14.441736, T3 6.999177, T4 7.577664, T5 14.441736, T6 11.460345, T7 5.579852, T8 5.731660, T9 6.205386, T10 5.303341, T11 11.629390, T12 9.460660, T13 6.037486, T14 6.536489, T15 5.384014, T16 5.466669, T17 14.441736, T18 5.484144, T19 5.579852; N1 3.794712, N2 3.505020, N3 13.339238, N4 5.579852, N5 5.484144; X1 2.390608. `composite` gav `{r:95,g:106,b:122}` för `overlay` över vitt. Varje T-par låg på ≥ 4,5, varje N-par på ≥ 3 och X1 under 3. |
 | K24-K26 | `dev`, `preview` och `format` med kontrollerna i 5.1 | Körda av byggaren 2026-11-20 i 1.5: K25 gav 200 och K26 EXIT=0. K24 gav 200 på port 5174 med `--strictPort`, eftersom 5173 var upptagen av en annan process; koordinatorn godtog det som belägg, och K24 skrivs sedan dess med `<ledig port>` (5.1). |
-| K27 | Typkontrollens täckning: sonden `export const typeErrProbe: number = 'text';` per fall i `.scratch/tc`, sedan `timeout 600 npm run build` (5.1, "Beviset i 1.7") | Körd av byggaren i en kopia i 1.7-förstudien 2026-11-20: EXIT=2 med `TS2322` för vart och ett av `src/`, `tests/`, `e2e/`, `vite.config.ts` och `playwright.config.ts`. Körs igen i 1.7 mot de incheckade filerna (Klar när). Krav: EXIT≠0 och `TS2322` med filens sökväg för varje fall. Granskarens körning i P3 (före ändringen): sonden i `tests/typeerr.test.ts` gav EXIT=0 i K8, K10 och K11 (LARDOMAR.md, posten om P3). |
-| K28 | Lint av `.mjs`: `scripts/probe.mjs` i `.scratch/tc`, sedan `timeout 300 npm run lint` (5.1, "Beviset i 1.7") | Körd av byggaren i en kopia i 1.7-förstudien 2026-11-20: EXIT=1 med `no-unused-vars` och 0 träffar på `no-undef`. Mutationen `globals: {}` gav `no-undef` för `console` och `process`, EXIT=1. Körs igen i 1.7 mot de incheckade filerna (Klar när). Krav: EXIT≠0, `no-unused-vars` i utdatan och inget `no-undef`. |
-| - | Typsnittspaketen | Kontrollerade av byggaren i en kopia i 1.7-förstudien 2026-11-20: `@fontsource-variable/fraunces` 5.3.0 och `@fontsource-variable/inter` 5.3.0, båda med licens `OFL-1.1` och `font-family` `'Fraunces Variable'` respektive `'Inter Variable'`. Alla `url()` i paketens CSS pekade på lokala `./files/*.woff2`; sökningen efter `http` gav 0 träffar. Export av `./index.css` ingick inte i förstudiens redovisning; den redovisas i 1.7 (4.3). |
+| K27 | Typkontrollens täckning: sonden `export const typeErrProbe: number = 'text';` per fall i `.scratch/tc`, sedan `timeout 600 npm run build` (5.1, "Beviset i 1.7") | Körd av byggaren i en kopia i 1.7-förstudien 2026-11-20: EXIT=2 med `TS2322` för vart och ett av `src/`, `tests/`, `e2e/`, `vite.config.ts` och `playwright.config.ts`. Körd igen av byggaren i 1.7 (2026-11-20, commit 1ac1aef) i en kopia av de incheckade filerna: EXIT=2 med `TS2322` för vart och ett av `src/`, `tests/`, `e2e/`, `vite.config.ts` och `playwright.config.ts`, och EXIT=0 utan sond. Krav: EXIT≠0 och `TS2322` med filens sökväg för varje fall. Granskarens körning i P3 (före ändringen): sonden i `tests/typeerr.test.ts` gav EXIT=0 i K8, K10 och K11 (LARDOMAR.md, posten om P3). |
+| K28 | Lint av `.mjs`: `scripts/probe.mjs` i `.scratch/tc`, sedan `timeout 300 npm run lint` (5.1, "Beviset i 1.7") | Körd av byggaren i en kopia i 1.7-förstudien 2026-11-20: EXIT=1 med `no-unused-vars` och 0 träffar på `no-undef`. Mutationen `globals: {}` gav `no-undef` för `console` och `process`, EXIT=1. Körd igen av byggaren i 1.7 (2026-11-20, commit 1ac1aef) i en kopia av de incheckade filerna: EXIT=1 med `no-unused-vars` och 0 träffar på `no-undef`; utan sond gav lint EXIT=0. Krav: EXIT≠0, `no-unused-vars` i utdatan och inget `no-undef`. |
+| K29 | `npm run test:coverage -- --coverage.include=<fil> ...` (5.1, "Täckning, K29") | Okörd; efter 1.7 fanns varken paketet eller skriptet. Körs första gången i 1.8, för `tests/support/contrast.ts` och `src/components/brand/Logo.tsx` (D54). |
+| - | Typsnittspaketen | Kontrollerade av byggaren i en kopia i 1.7-förstudien 2026-11-20: `@fontsource-variable/fraunces` 5.3.0 och `@fontsource-variable/inter` 5.3.0, båda med licens `OFL-1.1` och `font-family` `'Fraunces Variable'` respektive `'Inter Variable'`. Alla `url()` i paketens CSS pekade på lokala `./files/*.woff2`; sökningen efter `http` gav 0 träffar. Kontrollerade av byggaren i 1.7 (2026-11-20, commit 1ac1aef): `npm view` gav version 5.3.0 och licens `OFL-1.1` för båda paketen; `./index.css` exporteras via mönstret `"./*.css"`; `prettier --check` på `tokens.css`, `index.css` och `main.tsx`, maskinellt utdragna ur 4.6, gav EXIT=0. `font-family` ingick inte i byggarens redovisning i 1.7; arkitekten läste 2026-11-20 de installerade `web/node_modules/@fontsource-variable/fraunces/index.css` och `.../inter/index.css`: första `@font-face` har `font-family: 'Fraunces Variable';` respektive `font-family: 'Inter Variable';`, och båda paketens `package.json` har `"version": "5.3.0"`, `"license": "OFL-1.1"` och exporten `"./*.css"`. |
+| - | Spärren mot externa typsnittsvärdar, M1–M3 (4.3) | Körda av byggaren i 1.7 (2026-11-20, commit 1ac1aef) i kopian `.scratch/tc`, en i taget: M1, M2 och M3 gav alla EXIT=1 i K11, och varje gång var `fonts-local.test.ts` den enda fallerade testfilen. |
 | - | Låsta webbversioner | Låsta av byggaren 2026-11-20 i 1.5 (`--save-exact`): react och react-dom 19.3.1, vite 8.3.8, @vitejs/plugin-react 6.3.0, typescript 6.0.3, tailwindcss och @tailwindcss/vite 4.3.5, eslint och @eslint/js 9.39.5, typescript-eslint 8.73.0, eslint-plugin-react-hooks 7.1.1, eslint-plugin-react-refresh 0.5.8, eslint-plugin-jsx-a11y 6.10.2, globals 17.14.0, eslint-config-prettier 10.1.8, prettier 3.10.1, vitest 5.1.1, jsdom 31.0.1, @testing-library/react 16.3.3, @testing-library/dom 10.4.2, @testing-library/user-event 14.6.13, @testing-library/jest-dom 8.0.0, @types/react och @types/react-dom 19.3.0, @types/node 24.19.2. |
 | - | Versionslåsningar | Kontrollerade av byggaren 2026-11-20 med `npm view` och provinstallation: ESLint 10 med `eslint-plugin-jsx-a11y` 6.10.2 gav ERESOLVE, EXIT=1 (D39); `typescript-eslint` 8.73.0 kräver TypeScript `>=4.8.4 <6.1.0` (D40). |
 | - | Docker | Koordinatorn 2026-11-20: inte installerat än. Användaren installerar Docker Desktop själv. Se K14-K17. |
@@ -2132,8 +2178,9 @@ Kvar är förutsättningar som inte är öppna frågor:
   texter som litteraler. (påverkat av lärdom: ja, LARDOMAR.md: "Byggaren fattar
   inga egna beslut." och "Jämför svaret mot en literal i testfilen")
 - D5: Kontrasttestet jämför oavrundade kvoter och skriver ut sex decimaler.
-  De enda kvoter som står i den här filen är koordinatorns uträknade värden i
-  K23, med två decimaler och långt från gränserna. (påverkat av lärdom: ja,
+  Kvoterna står bara i K23 (avsnitt 12): koordinatorns värden med två
+  decimaler och de oavrundade kvoterna från testet i 1.7 (2026-11-20).
+  (påverkat av lärdom: ja,
   LARDOMAR.md: "Ett påstående om exakthet eller en gräns")
 - D6: Tankstreck i specens tider skrivs `\u2013` i källa och tester.
   (påverkat av lärdom: ja, LARDOMAR.md: "Osynliga tecken (U+00A0, U+2212,
@@ -2386,11 +2433,12 @@ Kvar är förutsättningar som inte är öppna frågor:
   blir ett giltigt `Rgb` som klarar C4 i `relativeLuminance`. Testet av
   `composite` har den väntade litteralen `{ r: 95, g: 106, b: 122 }`; T18 och N5
   kräver ≥ 4,5 respektive ≥ 3 och asserterar inte kvoten exakt. Med
-  oavrundad komposition gav T18 5.483893 (1.7-förstudien 2026-11-20).
+  oavrundad komposition gav T18 5.483893 (1.7-förstudien 2026-11-20), med
+  avrundad 5.484144 (1.7, 2026-11-20).
   Bortvalt: oavrundad komposition (resultatet är inget heltals-`Rgb`, och
   `Rgb` skulle behöva två betydelser). `contrastRatio` för svart mot vitt
   asserteras med `toBeCloseTo(21, 10)`, inte som exakt 21, eftersom ingen
-  körning har visat flyttalsresultatet. (påverkat av lärdom: ja,
+  körning till och med 1.7 redovisade flyttalsresultatet. (påverkat av lärdom: ja,
   LARDOMAR.md: "Kontrollera gränser igen på den form som lagras (efter
   avrundning)." och "Ett påstående om exakthet eller en gräns")
 - D52: `tokens.css`, `index.css` och `main.tsx` står ordagrant i 4.6. Den enda
@@ -2409,11 +2457,45 @@ Kvar är förutsättningar som inte är öppna frågor:
   (påverkat av lärdom: ja, LARDOMAR.md: "Varje konfigurationsfil i
   mappstrukturen har sitt innehåll angivet i ARKITEKTUR.md.")
 - D53: Typsnittens licens skrivs i 1.20, när `docs/media-credits.md` skapas,
-  under `## Typsnitt` med formatet i avsnitt 8; 1.7 redovisar bara `license`
-  ur paketens `package.json`. `media-credits.test.ts` kräver att
+  under `## Typsnitt` med formatet i avsnitt 8; 1.7 redovisade bara licensen
+  (`OFL-1.1`, avsnitt 12). `media-credits.test.ts` kräver att
   `Paket`-kolumnen stämmer med `@fontsource-variable/*` i `dependencies`.
   Skäl: filen får bara en skapande uppgift, och två ställen som beskriver
   samma paket får ett test som kräver att de stämmer. (påverkat av lärdom: ja,
   LARDOMAR.md: "Varje fil i mappstrukturen ska ha exakt en skapande uppgift."
   och "Två konstanter som beskriver samma domän får ett test som kräver att de
   stämmer.")
+- D54: Täckning för `web/` byggs, inget avsteg: `@vitest/coverage-v8` 5.1.1
+  (exakt samma version som `vitest` 5.1.1, vars peer-krav i
+  `web/package-lock.json` är `"@vitest/coverage-v8": "5.1.1"`) som
+  devDependency, skriptet `test:coverage` =
+  `vitest run --coverage --coverage.provider=v8 --coverage.reporter=text`,
+  och K29 med ett `--coverage.include` per fil i urvalet (5.1, "Täckning,
+  K29"). Läggs in i 1.8, som ligger i samma arbetspaket (P4) som 1.7, så att
+  `contrast.ts` från 1.7 mäts före granskningen av P4; därefter körs K29 i
+  varje webbuppgift med filer i urvalet (avsnitt 11). Körs lokalt per uppgift,
+  inte i CI, och utan procentgränser: regeln kräver ett beslut per otäckt rad
+  (onåbar eller oprövad), vilket en gräns i CI inte ger, och CI-jobbet `web`
+  ändras då inte. `vite.config.ts` får inget `coverage`-block; allt står i
+  skriptet, så att `npm test` (K11) är oförändrat. För `api/` görs ett avsteg
+  i Fas 1: efter 1.3 tillkommer inga C#-filer i Fas 1 (1.4 skapar bara
+  `Dockerfile`, `.dockerignore` och Compose-filen), och täckning för `api/`
+  (`coverlet`) beslutas när Fas 2 planeras. Bortvalt: ett uttryckligt avsteg
+  även för `web/` (regeln är bindande och kostar ett devberoende);
+  `@vitest/coverage-istanbul`; en egen uppgift före 1.8 (planen har redan
+  1.8 som första uppgift efter 1.7 i samma paket). (påverkat av lärdom: ja,
+  LARDOMAR.md: "Kör täckning (`coverlet`/`vitest --coverage`) på nya filer och
+  avgör per otäckt rad: onåbar (ta bort) eller oprövad (skriv test)." och "En
+  lärdom som föreskriver en konkret konstruktion byggs eller avfärdas med skäl
+  i beslutsloggen.")
+- D55: Testfallen som byggaren lade till i 1.7 utöver 4.2 och 4.3 skrivs in
+  som facit: C2 med inledande och avslutande blanksteg, de två fallen för
+  kontrollordningen i `composite` (4.2), och kravet i `fonts-local.test.ts`
+  att `index.html` finns bland de lästa filerna och att varje annan läst fil
+  slutar på `.css` (4.3). Mutationerna i 4.3 får namnen M1–M3. Ingen
+  ändring för den ekvivalenta mutanten `srgb <= 0.04045` → `<` (4.2 säger
+  redan att inget heltal ligger på gränsen) eller för
+  `expect(tokens.has(...))` i `tokens-contrast.test.ts`, som 4.2 föreskriver
+  och som inte är ett villkor i `contrast.ts`. (påverkat av lärdom: ja,
+  LARDOMAR.md: "Skiljer sig `docs/ARKITEKTUR.md` från det koden faktiskt gör
+  lämnas paketet tillbaka till arkitekten.")
