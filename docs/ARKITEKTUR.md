@@ -1462,8 +1462,10 @@ Kontrollen i 1.2: byggaren skapar en tom fil av varje ignorerad sort
 `git check-ignore -v` ska ge en träff för `LARDOMAR.arkiv.md`,
 `PROMPT-grannbo.md` och `.claude/x` (tom fil skapad för kontrollen), och
 `git check-ignore LARDOMAR.md` respektive `git check-ignore .env.example` ska
-ge exitkod 1 (inte ignorerade). `.env.example` och `LARDOMAR.md` ska synas i
-`git status`.
+ge exitkod 1 (inte ignorerade), och `git ls-files --error-unmatch LARDOMAR.md`
+respektive `git ls-files --error-unmatch .env.example` ska ge exitkod 0
+(incheckade). En incheckad och oförändrad fil syns inte i `git status`, så
+kravet prövas med de kommandona och inte med `git status`.
 
 ## 11. Krav per uppgift
 
@@ -1477,7 +1479,7 @@ fil står under "Använder".
 | # | Krav i den här filen | Skapar | Använder |
 |---|----------------------|--------|----------|
 | 0.1 | Hela filen. K1:s utdata klistras in ordagrant i avsnitt 12. | `docs/ARKITEKTUR.md` | - |
-| 1.1 | Avsnitt 1. README-stomme: rubrik `# Grannbo` och en mening om vad projektet är, inga kommandon. Ingen `docker-compose.yml`. `api/` och `web/` uppstår i 1.3 och 1.5 (git sparar inga tomma kataloger). | `README.md` (stomme), `mobile/README.md` | - |
+| 1.1 | Avsnitt 1. README-stomme: rubrik `# Grannbo` och, ordagrant, meningen `Grannbo är ett bokningssystem där boende i en bostadsrättsförening bokar gemensamma lokaler (tvättstuga, bastu, festlokal).` (koordinatorns godkännande av byggarens text, 2026-11-20). Inga kommandon. Ingen `docker-compose.yml`. `api/` och `web/` uppstår i 1.3 och 1.5 (git sparar inga tomma kataloger). | `README.md` (stomme), `mobile/README.md` | - |
 | 1.2 | Avsnitt 10 och 3.3. | `.gitignore`, `.gitattributes`, `.env.example` | - |
 | 1.3 | Avsnitt 2 (.NET-raderna), 5.2, K3-K6. | allt under `api/` utom `Dockerfile` och `.dockerignore` | - |
 | 1.4 | Avsnitt 5.3, K14-K17. Får inte märkas klar förrän K14-K16 har körts; Docker Desktop installeras av användaren (A12). Finns Docker inte när 1.3 är klar blir 1.4 ett eget paket, P2b, och P3 får starta under tiden (`docs/plan.md`, "Arbetsgång"). | `api/Dockerfile`, `api/.dockerignore`, `docker-compose.yml` | `api/` (1.3), `.env.example` (1.2) |
@@ -1516,7 +1518,7 @@ fil står under "Använder".
 | K14-K17 | Compose | Okörda. `docker` saknas (koordinatorn 2026-11-20: `docker: command not found`). Körs i 1.4 när användaren har installerat Docker Desktop (A12). |
 | K18 | Kodarna i `ffmpeg-static` (från `web/`, efter att paketet installerats): `timeout 60 node -e "require('child_process').spawnSync(require('ffmpeg-static'),['-hide_banner','-encoders'],{stdio:'inherit'})"` | Systemets ffmpeg: körd av koordinatorn 2026-11-20, `ffmpeg -version` gav `ffmpeg: command not found`. Därför används `ffmpeg-static` (F7). Kommandot till vänster är okört och körs före 1.12. Utdatan ska innehålla `libvpx-vp9`, `libx264` och `libaom-av1` eller `libsvtav1`; annars lämnas det tillbaka till arkitekten. |
 | K19 | Finns Chrome: `Test-Path "C:\Program Files\Google\Chrome\Application\chrome.exe"` | Kontrollerad av koordinatorn 2026-11-20: Chrome finns på `C:\Program Files\Google\Chrome\Application\chrome.exe`. Playwright använder `channel: 'chrome'`. |
-| K20 | `git check-ignore -v <fil>` per fil i avsnitt 10 | Okörd. Körs i 1.2. |
+| K20 | `git check-ignore -v <fil>` per fil i avsnitt 10 | Körd av byggaren 2026-11-20 i 1.2 (P1, commit 6b6ecde). Alla 14 filer som ska ignoreras gav exit 0, bland dem `LARDOMAR.arkiv.md`, `PROMPT-grannbo.md` och `.claude/x`. `LARDOMAR.md` och `.env.example` gav exit 1. `git status --short --ignored` efter sista commit visade bara `!! LARDOMAR.arkiv.md` och `!! PROMPT-grannbo.md`. |
 | K21 | Längd och strömmar (från `web/`): `timeout 120 node -e "require('child_process').spawnSync(require('ffmpeg-static'),['-hide_banner','-i',process.argv[1],'-f','null','-'],{stdio:'inherit'})" public/media/hero-drone.<ext>` | Okörd. Körs i 1.12 för `webm` och `mp4`. Utdatan ska visa `Duration` mellan 10 och 20 s och ingen rad `Stream ... Audio`. (ffprobe ingår inte i `ffmpeg-static`.) |
 | K22 | `npm run media:placeholders` | Okörd. Körs i 1.12 (hero-filerna), 1.14 (lokalbilderna) och 1.21 (`og-image.jpg`). |
 | K23 | Kontrastkvoter för basfärgerna, WCAG-formeln i Node | Uträknade av koordinatorn 2026-11-20: `#E38B5C`/`#F4F6F9` = 2.39; `#E38B5C`/`#1B2A41` = 5.58; `#9A4A28`/`#F4F6F9` = 5.73; `#1B2A41`/`#F4F6F9` = 13.34; `#475569`/`#F4F6F9` = 7.00. Avrundade till två decimaler; ingen av dem ligger nära en gräns. Testet i 1.7 räknar om dem oavrundade (par X1, T19, T8, T1, T3). |

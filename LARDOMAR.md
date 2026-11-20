@@ -267,3 +267,8 @@ Bindande från start: mönster som gått fel flera gånger tidigare, översatta 
 **Vad gick fel:** Avsnitt 5.2 föreskriver först `builder.Services.AddProblemDetails()` utan argument och några rader senare `AddProblemDetails(o => o.CustomizeProblemDetails = …)` (D30); och strukturreglerna i avsnitt 1 säger att tester som läser filer från disk ligger i `web/tests/`, medan `src/components/brand/Logo.test.tsx` ska jämföra geometrin med innehållet i `public/favicon.svg`.
 **Varför:** Nya krav (D30, geometrijämförelsen) lades till i ett avsnitt utan att samma anrop eller regel söktes upp i resten av filen.
 **Regel framåt:** När ett krav läggs till i ARKITEKTUR.md: sök anropets namn (t.ex. `AddProblemDetails`) och varje strukturregel som kravet berör, och skriv om varje träff så att alla ger samma svar i samma ändring.
+
+### 2026-11-20 — process (P1): commitmeddelanden följer inte formen i planen
+**Vad gick fel:** `docs/plan.md` ("Arbetsgång") kräver formen `typ(område): beskrivning`, men commit d459b28 heter `chore: monorepo-skelett` och 6b6ecde `chore: .gitignore, .gitattributes och .env.example`, alltså utan område (samma sak gällde P0:s commit `docs: ...`).
+**Varför:** Byggaren skrev rubriken efter vana och jämförde den aldrig med formen i planen före commit.
+**Regel framåt:** Före varje commit: kontrollera rubriken med `git log -1 --format=%s | grep -E '^[a-z]+\([a-z0-9-]+\): .+'` och kräv exit 0; område är katalogen eller delen som ändras (`repo`, `api`, `web`, `docs`, `ci`).
