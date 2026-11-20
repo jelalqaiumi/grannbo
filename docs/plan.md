@@ -91,7 +91,7 @@ Uppgifterna körs i tabellens ordning. 1.5b har samma namn som i
 | 1.3 | [x] | Minimalt .NET 10-lösningsskelett med projekten Domain, Application, Infrastructure och Api enligt Clean Architecture, ett hälsoendpoint och ett xUnit-test för det. | Byggare | Bygge och test ger exit 0 (utdata inklistrad). Projektreferenserna går bara inåt. Commit gjord. |
 | 1.4 | [ ] | `docker-compose.yml` med PostgreSQL och API. Kräver att användaren har installerat Docker Desktop (A12). | Byggare | `docker compose up` har körts. Båda tjänsterna startar, och hälsoendpointen svarar via Compose (utdata inklistrad). Inga hemligheter i filen, bara variabler från `.env`. Commit gjord. |
 | **P3** | | **Webbgrund och CI** | | |
-| 1.5 | [ ] | Webben: Vite + React + TypeScript + Tailwind, lint, Vitest och Testing Library. Ingångspunkten `main.tsx` och `App` med ett första test. | Byggare | `build`, `lint` och `test` ger exit 0 (utdata inklistrad). Commit gjord. |
+| 1.5 | [x] | Webben: Vite + React + TypeScript + Tailwind, lint, Vitest och Testing Library. Ingångspunkten `main.tsx` och `App` med ett första test. | Byggare | `build`, `lint` och `test` ger exit 0 (utdata inklistrad). Commit gjord. |
 | 1.6 | [ ] | GitHub Actions CI: bygg, lint och test för `/api` och `/web` på varje PR. | Byggare | Ett körningsresultat från GitHub är grönt (fjärrepot enligt F4). Commit gjord. |
 | **P4** | | **Designgrund** | | |
 | 1.7 | [ ] | Design tokens i Tailwind-konfigen: färger (A1, A11), typsnitten Fraunces och Inter självhostade (A2), avstånd och radier. | Byggare | Ett test visar WCAG AA-kontrast för de par som `docs/ARKITEKTUR.md` 4.2 räknar upp. Typsnitten laddas lokalt, inte från en tredje part. Commit gjord. |
