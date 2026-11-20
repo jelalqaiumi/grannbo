@@ -65,7 +65,8 @@ Faserna 2-6 får egna avsnitt först när de planeras.
 │  ├─ package.json / package-lock.json
 │  ├─ vite.config.ts           Vite + React + Tailwind-plugin + Vitest-konfig (test-blocket)
 │  ├─ tsconfig.json, tsconfig.app.json, tsconfig.node.json
-│  ├─ eslint.config.js         ESLint flat config
+│  ├─ tsconfig.test.json       Typkontroll av tests/ och e2e/ (1.7, innehåll i 5.1)
+│  ├─ eslint.config.js         ESLint flat config (TS/React-regler för .ts/.tsx, Node-regler för .js/.mjs)
 │  ├─ .prettierrc.json, .prettierignore
 │  ├─ playwright.config.ts     Konfig för e2e/ (1.22). Paketet installeras redan i 1.8
 │  ├─ public/
@@ -627,12 +628,226 @@ finns i 1.5.
   stöder justeras, och byggaren redovisar varje avvikelse från mallen.
   `"strict": true` ska finnas. Det är standard i TypeScript 6.0.3 men skrivs
   ut uttryckligen, så att det inte beror på kompilatorns standardvärde.
+  1.7 ändrar `tsconfig.json` och `tsconfig.node.json` och skapar
+  `tsconfig.test.json`; det slutliga innehållet i varje tsconfig-fil står under
+  "Typkontroll och lint av alla kataloger (1.7)" nedan.
 - `web/eslint.config.js`, i den här ordningen: `globalIgnores([...])` enligt
   listan ovan; `js.configs.recommended`; `tseslint.configs.recommended` (inte
   type-checked); `jsxA11y.flatConfigs.strict`;
   `reactHooks.configs.flat.recommended`; `reactRefresh.configs.vite`;
   `languageOptions.globals` = `globals.browser`; `eslint-config-prettier` sist.
   Konfigurationsobjektet med TS/React-reglerna har `files: ['**/*.{ts,tsx}']`.
+  1.7 lägger till ett objekt för `.js`/`.mjs`; det slutliga innehållet står
+  under "Typkontroll och lint av alla kataloger (1.7)" nedan.
+
+**Typkontroll och lint av alla kataloger (1.7).** Varje katalog och fil under
+`web/` som innehåller `.ts`/`.tsx` ingår i `include` i exakt en tsconfig som
+`tsc -b` (K10) bygger:
+
+| Katalog/fil | tsconfig | Varför just den |
+|-------------|----------|-----------------|
+| `src/` | `tsconfig.app.json` | Webbläsarkod och komponenttester (jsdom) |
+| `vite.config.ts`, `playwright.config.ts` | `tsconfig.node.json` | Konfigurationsfiler som körs av Node |
+| `tests/`, `e2e/` | `tsconfig.test.json` | Testkod som körs av Vitest i Node respektive Playwright: behöver Node-typer (`node:fs`, `process`) och DOM-typer (`DOMParser` i `seo-meta.test.ts`, `document` i `page.evaluate` i `e2e/`) |
+
+Inget eget typkontrollskript och inget eget CI-steg: `npm run build` (K10,
+`tsc -b && vite build`) bygger alla projekt i `references` och körs redan i
+CI-jobbet `web` (5.4). Filer i `tests/` och `e2e/` använder inga
+jest-dom-matchare (de renderar inga komponenter, avsnitt 1); behövs det
+lämnas det tillbaka till arkitekten.
+
+`web/tsconfig.json`, hela innehållet ordagrant:
+
+```json
+{
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" },
+    { "path": "./tsconfig.test.json" }
+  ]
+}
+```
+
+`web/tsconfig.app.json`, hela innehållet ordagrant (oförändrat från 1.5):
+
+```json
+{
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    "target": "es2023",
+    "lib": ["ES2023", "DOM"],
+    "module": "esnext",
+    "types": ["vite/client"],
+    "allowArbitraryExtensions": true,
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src"]
+}
+```
+
+`web/tsconfig.node.json`, hela innehållet ordagrant (ändringen mot 1.5 är
+bara `include`):
+
+```json
+{
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
+    "target": "es2023",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "module": "nodenext",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["vite.config.ts", "playwright.config.ts"]
+}
+```
+
+`web/tsconfig.test.json` (ny i 1.7), hela innehållet ordagrant:
+
+```json
+{
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.test.tsbuildinfo",
+    "target": "es2023",
+    "lib": ["ES2023", "DOM"],
+    "module": "esnext",
+    "types": ["node", "vite/client"],
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["tests", "e2e"]
+}
+```
+
+`"jsx": "react-jsx"` och `vite/client` finns med för att en fil i `tests/` som
+importerar en modul i `src/` drar in den modulens importer (`.tsx`, `?raw`).
+`playwright.config.ts` och `e2e/` skapas i 1.22; `include` är ett
+mönster, och en post som inte matchar något är inget fel så länge projektet har
+minst en annan indatafil (ej körd: prövas av K10 och K27 i 1.7).
+`tsconfig.test.json` checkas in i samma commit som den första filen i
+`tests/`, eftersom ett projekt helt utan indatafiler kan ge TS18003 ("No inputs
+were found") i `tsc -b` (ej körd).
+
+`web/eslint.config.js`, hela innehållet ordagrant (ändringen mot 1.5 är det
+andra konfigurationsobjektet med `files: ['**/*.{js,mjs}']`):
+
+```js
+import js from '@eslint/js';
+import { defineConfig, globalIgnores } from 'eslint/config';
+import eslintConfigPrettier from 'eslint-config-prettier';
+import jsxA11y from 'eslint-plugin-jsx-a11y';
+import reactHooks from 'eslint-plugin-react-hooks';
+import reactRefresh from 'eslint-plugin-react-refresh';
+import globals from 'globals';
+import tseslint from 'typescript-eslint';
+
+export default defineConfig([
+  globalIgnores([
+    'dist',
+    '.lighthouse',
+    '.e2e-output',
+    'playwright-report',
+    'test-results',
+    'coverage',
+    'public/media',
+  ]),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      js.configs.recommended,
+      tseslint.configs.recommended,
+      jsxA11y.flatConfigs.strict,
+      reactHooks.configs.flat.recommended,
+      reactRefresh.configs.vite,
+    ],
+    languageOptions: {
+      globals: globals.browser,
+    },
+  },
+  {
+    files: ['**/*.{js,mjs}'],
+    extends: [js.configs.recommended],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
+  eslintConfigPrettier,
+]);
+```
+
+Objektet för `.js`/`.mjs` gäller `eslint.config.js` (från 1.7) och
+`scripts/**/*.mjs` (från 1.12 och 1.23). Alla `.js`/`.mjs` under `web/` som inte är ignorerade
+körs i Node, därför `globals.node` och inte `globals.browser`.
+
+**Beviset i 1.7** (arbetskatalog repo-roten, Git Bash, i en kopia under
+`.scratch/`, aldrig i `web/`):
+
+- K27, typkontrollens täckning. Kopiera med `rm -rf .scratch/tc && cp -r web .scratch/tc`.
+  Lägg för varje rad nedan till sonden, kör `(cd .scratch/tc && timeout 600 npm run build)`,
+  kräv EXIT≠0 och att utdatan innehåller `TS2322` och filens sökväg, och ta
+  sedan bort sonden innan nästa rad. Sonden är raden
+  `export const typeErrProbe: number = 'text';`.
+
+  | Fall | Var sonden läggs |
+  |------|------------------|
+  | `src/` | ny fil `src/typeerr.ts` |
+  | `tests/` | ny fil `tests/typeerr.test.ts` |
+  | `e2e/` | ny fil `e2e/typeerr.spec.ts` |
+  | `vite.config.ts` | sist i `vite.config.ts` |
+  | `playwright.config.ts` | ny fil `playwright.config.ts` med sonden och `export default {};` |
+
+  Redovisa per fall sista raderna och `EXIT=<kod>` ordagrant. Därefter körs
+  K8–K11 i det riktiga `web/` med EXIT=0.
+- K28, lint av `.js`/`.mjs`. I samma kopia: skapa
+  `scripts/probe.mjs` med de två raderna `const unusedProbe = 1;` och
+  `console.log(process.argv.length);`, kör `(cd .scratch/tc && timeout 300 npm run lint)`,
+  och kräv EXIT≠0, att utdatan innehåller `no-unused-vars` för `unusedProbe`
+  och att den **inte** innehåller `no-undef` (Node-globalen `process` är känd).
+  Redovisa utdatan och `EXIT=<kod>` ordagrant.
+- Kopian `.scratch/tc` tas bort efteråt (`rm -rf .scratch/tc`).
 
 **Compose** (arbetskatalog roten, `.env` kopierad från `.env.example`):
 
@@ -810,6 +1025,17 @@ Jobb `web` (`runs-on: ubuntu-latest`, `timeout-minutes: 15`,
 checkout → setup-node med `node-version-file: web/.nvmrc`, `cache: npm`,
 `cache-dependency-path: web/package-lock.json` → `npm ci` → `npm run lint` →
 `npm run format:check` → `npm run build` → `npm test`.
+
+Typkontrollen av `src/`, `tests/`, `e2e/`, `vite.config.ts` och
+`playwright.config.ts` körs i CI av steget `npm run build` (K10, `tsc -b`),
+enligt tabellen "Typkontroll och lint av alla kataloger (1.7)" i 5.1. `ci.yml`
+ändras inte för det.
+
+SDK-versionen i jobbet `api` låses inte (`dotnet-version: '10.0.x'` står kvar,
+D45). Blir K3 eller K4 röd i CI utan att koden ändrats: läs SDK-versionen i
+loggen från `setup-dotnet` och felkoden. NU1901–NU1904 (NuGetAudit) åtgärdas
+genom att det sårbara paketet uppdateras i en egen commit; varningar från en
+ny SDK lämnas tillbaka till arkitekten.
 
 K12 och K13 körs inte i CI i Fas 1.
 
@@ -1573,7 +1799,7 @@ fil står under "Använder".
 | 1.4 | Avsnitt 5.3, K14-K17. Får inte märkas klar förrän K14-K16 har körts; Docker Desktop installeras av användaren (A12). Finns Docker inte när 1.3 är klar blir 1.4 ett eget paket, P2b, och P3 får starta under tiden (`docs/plan.md`, "Arbetsgång"). | `api/Dockerfile`, `api/.dockerignore`, `docker-compose.yml` | `api/` (1.3), `.env.example` (1.2) |
 | 1.5 | Avsnitt 2 (webbraderna och versionslåsningarna D39-D41), 5.1 (K7-K11, ignoreringslistorna, "Skripten per uppgift", "Kontrollen av skripten i 1.5" med K24-K26, och "Innehåll som 1.5 skapar"), struktur i avsnitt 1. Första testet `src/App.test.tsx`: heading level 1 med namnet "Grannbo". Versioner och avvikelser från create-vite-mallens tsconfig redovisas. | `web/.nvmrc`, `package.json` (skripten `dev`, `build`, `preview`, `lint`, `format`, `format:check`, `test`), `package-lock.json`, `vite.config.ts`, `tsconfig.json`, `tsconfig.app.json`, `tsconfig.node.json`, `eslint.config.js`, `.prettierrc.json`, `.prettierignore`, `index.html` (`lang`, `charset`, `viewport`, `<title>`), `src/main.tsx` (slutlig form), `src/App.tsx`, `src/App.test.tsx`, `src/styles/index.css` (`@import 'tailwindcss';`), `src/test/setup.ts` (bara jest-dom) | - |
 | 1.6 | Avsnitt 5.4. Kräver push till remote `origin` (F4) och en grön körning av båda jobben på GitHub, med körningens resultat redovisat. | `.github/workflows/ci.yml` | `api/` (1.3), `web/` (1.5) |
-| 1.7 | Avsnitt 4.1-4.4, 4.2 (alla par T1-T19, N1-N5 och X1), K23. Typsnitt: Fraunces och Inter (F5). | `src/styles/tokens.css`, `tests/support/contrast.ts`, `tests/tokens-contrast.test.ts`, paketen `@fontsource-variable/fraunces` och `@fontsource-variable/inter` | `index.css`, `main.tsx` (1.5) |
+| 1.7 | Avsnitt 4.1-4.4, 4.2 (alla par T1-T19, N1-N5 och X1), K23. Typsnitt: Fraunces och Inter (F5). Avsnitt 5.1 "Typkontroll och lint av alla kataloger (1.7)": tsconfig-filerna och `eslint.config.js` får exakt det innehåll som står där, och `tsconfig.test.json` checkas in i samma commit som första filen i `tests/`. Klar när: K27 ger EXIT≠0 med `TS2322` för varje fall i tabellen (`src/`, `tests/`, `e2e/`, `vite.config.ts`, `playwright.config.ts`), K28 ger EXIT≠0 med `no-unused-vars` och utan `no-undef`, och därefter ger K8–K11 EXIT=0 i `web/`, med utdata inklistrad. | `src/styles/tokens.css`, `tests/support/contrast.ts`, `tests/tokens-contrast.test.ts`, `tsconfig.test.json`, paketen `@fontsource-variable/fraunces` och `@fontsource-variable/inter` | `index.css`, `main.tsx`, `tsconfig.json`, `tsconfig.node.json`, `eslint.config.js` (1.5) |
 | 1.8 | Avsnitt 4.5 (A3, A13). Favicon-raden i `index.html` (7.10). | `src/components/brand/Logo.tsx`, `Logo.test.tsx`, `tests/logo-colors.test.ts`, `public/favicon.svg`, `docs/brand/logo-source.pdf`, `docs/brand/logo-source.png`, paketet `@playwright/test` | `tokens.css` (1.7), `index.html` (1.5) |
 | 1.9 | Avsnitt 6.1, 6.2. `ButtonLink` med `to` renderar React Routers `<Link>`, så paketet installeras här, och testerna renderar i `MemoryRouter`. | `src/lib/cn.ts`, `ui/Button.tsx`, `ui/Input.tsx` (+ tester), `ui/index.ts`, paketet `react-router` | `tokens.css` (1.7) |
 | 1.10 | Avsnitt 6.3-6.6. | `ui/Card.tsx`, `ui/Badge.tsx`, `ui/Skeleton.tsx`, `ui/EmptyState.tsx` (+ tester) | `cn`, `ui/index.ts` (1.9) |
@@ -1614,6 +1840,8 @@ fil står under "Använder".
 | K22 | `npm run media:placeholders` | Okörd. Körs i 1.12 (hero-filerna), 1.14 (lokalbilderna) och 1.21 (`og-image.jpg`). |
 | K23 | Kontrastkvoter för basfärgerna, WCAG-formeln i Node | Uträknade av koordinatorn 2026-11-20: `#E38B5C`/`#F4F6F9` = 2.39; `#E38B5C`/`#1B2A41` = 5.58; `#9A4A28`/`#F4F6F9` = 5.73; `#1B2A41`/`#F4F6F9` = 13.34; `#475569`/`#F4F6F9` = 7.00. Avrundade till två decimaler; ingen av dem ligger nära en gräns. Testet i 1.7 räknar om dem oavrundade (par X1, T19, T8, T1, T3). |
 | K24-K26 | `dev`, `preview` och `format` med kontrollerna i 5.1 | Körda av byggaren 2026-11-20 i 1.5: K25 gav 200 och K26 EXIT=0. K24 gav 200 på port 5174 med `--strictPort`, eftersom 5173 var upptagen av en annan process; koordinatorn godtog det som belägg, och K24 skrivs sedan dess med `<ledig port>` (5.1). |
+| K27 | Typkontrollens täckning: sonden `export const typeErrProbe: number = 'text';` per fall i `.scratch/tc`, sedan `timeout 600 npm run build` (5.1, "Beviset i 1.7") | Okörd (arkitekten hade inget skal 2026-11-20). Körs i 1.7. Krav: EXIT≠0 och `TS2322` med filens sökväg för varje fall. Granskarens körning i P3 (före ändringen): sonden i `tests/typeerr.test.ts` gav EXIT=0 i K8, K10 och K11 (LARDOMAR.md, posten om P3). |
+| K28 | Lint av `.mjs`: `scripts/probe.mjs` i `.scratch/tc`, sedan `timeout 300 npm run lint` (5.1, "Beviset i 1.7") | Okörd (arkitekten hade inget skal 2026-11-20). Körs i 1.7. Krav: EXIT≠0, `no-unused-vars` i utdatan och inget `no-undef`. |
 | - | Låsta webbversioner | Låsta av byggaren 2026-11-20 i 1.5 (`--save-exact`): react och react-dom 19.3.1, vite 8.3.8, @vitejs/plugin-react 6.3.0, typescript 6.0.3, tailwindcss och @tailwindcss/vite 4.3.5, eslint och @eslint/js 9.39.5, typescript-eslint 8.73.0, eslint-plugin-react-hooks 7.1.1, eslint-plugin-react-refresh 0.5.8, eslint-plugin-jsx-a11y 6.10.2, globals 17.14.0, eslint-config-prettier 10.1.8, prettier 3.10.1, vitest 5.1.1, jsdom 31.0.1, @testing-library/react 16.3.3, @testing-library/dom 10.4.2, @testing-library/user-event 14.6.13, @testing-library/jest-dom 8.0.0, @types/react och @types/react-dom 19.3.0, @types/node 24.19.2. |
 | - | Versionslåsningar | Kontrollerade av byggaren 2026-11-20 med `npm view` och provinstallation: ESLint 10 med `eslint-plugin-jsx-a11y` 6.10.2 gav ERESOLVE, EXIT=1 (D39); `typescript-eslint` 8.73.0 kräver TypeScript `>=4.8.4 <6.1.0` (D40). |
 | - | Docker | Koordinatorn 2026-11-20: inte installerat än. Användaren installerar Docker Desktop själv. Se K14-K17. |
@@ -1829,3 +2057,44 @@ Kvar är förutsättningar som inte är öppna frågor:
   och skriptens fördelning per uppgift står i 5.1 (koordinatorns beslut
   2026-11-20, efter att byggaren lämnat tillbaka 1.5). (påverkat av lärdom: ja,
   LARDOMAR.md: "Byggaren fattar inga egna beslut.")
+- D44: `tests/` och `e2e/` typkontrolleras av ett eget projekt,
+  `tsconfig.test.json`, och `playwright.config.ts` läggs till i `include` i
+  `tsconfig.node.json`; alla byggs av `tsc -b` i K10, som redan körs i CI, så
+  inget nytt skript eller CI-steg behövs (5.1, 5.4). Eget projekt i stället för
+  att utöka `tsconfig.app.json`, eftersom testkoden körs i Node och behöver
+  `node`-typer som webbläsarkoden i `src/` inte ska få; i stället för att utöka
+  `tsconfig.node.json`, eftersom testkoden också behöver DOM-typer
+  (`DOMParser`, `page.evaluate`) som konfigurationsfilerna inte ska ha.
+  Ändringen görs som tillägg i 1.7 och inte som en egen uppgift före 1.7: 1.7
+  skapar de första filerna i `tests/`, och ett projekt helt utan indatafiler
+  kan ge TS18003 i `tsc -b` (ej körd). Beviset är K27 per katalog i en kopia.
+  Bortvalt: ett separat `typecheck`-skript (dubblerar `tsc -b` i K10);
+  `vitest --typecheck` (täcker inte `e2e/` eller `playwright.config.ts`).
+  (påverkat av lärdom: ja, LARDOMAR.md: "Varje katalog i ARKITEKTUR avsnitt 1
+  som innehåller `.ts`/`.tsx` ... ska ingå i `include` i exakt en tsconfig som
+  `tsc -b` bygger")
+- D45: SDK-versionen i CI låses inte; risken att K3/K4 blir röd utan
+  kodändring accepteras för Fas 1, med åtgärden i 5.4. Skäl: en låsning
+  måste gälla lokalt (10.0.302, K1), i CI och i Docker-avbildningen
+  `sdk:10.0` (1.4, okörd), och vilken SDK-version avbildningen och
+  GitHub-löparens förinstallerade SDK:er har är inte kontrollerat; en exakt
+  version i `global.json` kan därför stoppa 1.4, vilket var skälet till
+  `10.0.100` + `latestFeature` (avsnitt 2). NuGetAudit (NU1901–NU1904) låses
+  inte heller bort: en ny sårbarhet i ett låst paket är ett riktigt fel i
+  beroendena, inte ett slumpmässigt utfall, och att låsa SDK:n skulle inte
+  ändra det, eftersom sårbarhetsdatat hämtas vid varje restore. Bortvalt:
+  `dotnet-version: '10.0.302'` utan ändrad `global.json` (`latestFeature` väljer
+  den högsta installerade 10.0-SDK:n, och vilka som är förinstallerade på
+  löparen är inte kontrollerat); `WarningsNotAsErrors` för NU190x (döljer sårbarheter).
+  (påverkat av lärdom: ja, LARDOMAR.md: "Ett test som kan bli rött på
+  oförändrad kod är ett fel." – avvägt: regeln gäller tester, och utfallet
+  här beror på en ändrad omvärld, inte på slump)
+- D46: `eslint.config.js` får ett eget konfigurationsobjekt för
+  `**/*.{js,mjs}` med `js.configs.recommended` och `globals.node`, i 1.7
+  tillsammans med D44, så att det finns innan första `.mjs`-skriptet skrivs i
+  1.12. Skäl: i konfigurationen från 1.5 gällde alla regler bara
+  `files: ['**/*.{ts,tsx}']`, så `.js`/`.mjs` fick inga regler alls
+  (granskarens fynd i P3), och `scripts/` körs i Node. Beviset är K28. Bortvalt: att lägga till det i
+  1.12 (då ligger `eslint.config.js` oprövad till dess, och 1.12 får en
+  leverans till); `globals.browser` för `.js` (inga webbläsar-`.js` finns i
+  avsnitt 1). (påverkat av lärdom: nej)
