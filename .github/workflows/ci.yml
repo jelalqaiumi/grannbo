@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore (K3)
+        run: dotnet restore Grannbo.slnx --locked-mode
+      - name: Build (K4)
+        run: dotnet build Grannbo.slnx -c Release --no-restore
+      - name: Format (K5)
+        run: dotnet format Grannbo.slnx --verify-no-changes --no-restore
+      - name: Test (K6)
+        run: dotnet test Grannbo.slnx -c Release --no-build
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: web/.nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install (K7)
+        run: npm ci
+      - name: Lint (K8)
+        run: npm run lint
+      - name: Format check (K9)
+        run: npm run format:check
+      - name: Build (K10)
+        run: npm run build
+      - name: Test (K11)
+        run: npm test
