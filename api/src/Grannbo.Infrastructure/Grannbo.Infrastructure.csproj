@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\Grannbo.Application\Grannbo.Application.csproj" />
+    <ProjectReference Include="..\Grannbo.Domain\Grannbo.Domain.csproj" />
+  </ItemGroup>
+</Project>

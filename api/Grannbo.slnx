@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Grannbo.Domain/Grannbo.Domain.csproj" />
+    <Project Path="src/Grannbo.Application/Grannbo.Application.csproj" />
+    <Project Path="src/Grannbo.Infrastructure/Grannbo.Infrastructure.csproj" />
+    <Project Path="src/Grannbo.Api/Grannbo.Api.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Grannbo.Api.Tests/Grannbo.Api.Tests.csproj" />
+  </Folder>
+</Solution>

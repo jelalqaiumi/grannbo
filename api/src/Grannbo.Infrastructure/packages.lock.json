@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "dependencies": {
+    "net10.0": {
+      "grannbo.application": {
+        "type": "Project",
+        "dependencies": {
+          "Grannbo.Domain": "[1.0.0, )"
+        }
+      },
+      "grannbo.domain": {
+        "type": "Project"
+      }
+    }
+  }
+}

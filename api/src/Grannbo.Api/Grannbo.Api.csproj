@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <ItemGroup>
+    <PackageReference Include="Serilog.AspNetCore" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Grannbo.Application\Grannbo.Application.csproj" />
+    <ProjectReference Include="..\Grannbo.Infrastructure\Grannbo.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>
