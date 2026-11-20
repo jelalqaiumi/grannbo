@@ -85,7 +85,7 @@ Uppgifterna körs i tabellens ordning. 1.5b har samma namn som i
 | **P0** | | **Arkitektur för Fas 1** | | |
 | 0.1 | [x] | `docs/ARKITEKTUR.md` för Fas 1, byggd på specen, A1–A13 och F1–F8. Kontrollen att .NET 10-SDK finns lokalt (A8, K1) kördes av koordinatorn 2026-11-20, och arkitekten klistrar in utdatan. | Arkitekt | Varje uppgift 1.1–1.24 och 1.5b har krav i avsnitt 11, och ingen uppgift använder något som en senare uppgift skapar. Utdatan från K1 står inklistrad i `docs/ARKITEKTUR.md`. |
 | **P1** | | **Repo-grund** | | |
-| 1.1 | [ ] | Monorepo-skelett: `/api`, `/web`, `/mobile` (bara README, A7), `/docs` och en README-stomme i roten. | Byggare | Strukturen följer specens avsnitt 1, utom `docker-compose.yml`, som kommer i 1.4. Commit gjord. |
+| 1.1 | [x] | Monorepo-skelett: `/api`, `/web`, `/mobile` (bara README, A7), `/docs` och en README-stomme i roten. | Byggare | Strukturen följer specens avsnitt 1, utom `docker-compose.yml`, som kommer i 1.4. Commit gjord. |
 | 1.2 | [ ] | `.gitignore` (.NET, Node, `.env`, user-secrets, certifikat, katalog för utredningsskript) och `.env.example`. | Byggare | Fejkade filer av varje ignorerad sort syns inte i `git status`. `.env.example` innehåller bara namn och platshållare. Commit gjord. |
 | **P2** | | **Backend-skelett och Compose** (se beslutet om Docker) | | |
 | 1.3 | [ ] | Minimalt .NET 10-lösningsskelett med projekten Domain, Application, Infrastructure och Api enligt Clean Architecture, ett hälsoendpoint och ett xUnit-test för det. | Byggare | Bygge och test ger exit 0 (utdata inklistrad). Projektreferenserna går bara inåt. Commit gjord. |
