@@ -174,8 +174,8 @@ Regler för strukturen:
 | `Serilog.AspNetCore` (enda loggpaketet) | Specen kräver Serilog. Paketet innehåller konsol-sink, konfigurationsläsning och request-loggning. | Fler sinks (Seq, fil): inget krav i Fas 1. |
 | Inbyggt `AddProblemDetails` (med `CustomizeProblemDetails`, 5.2) + `UseExceptionHandler` + `UseStatusCodePages` | Specen kräver ProblemDetails. Finns i ramverket, inget paket. | Hellang.Middleware.ProblemDetails. |
 | Inbyggda hälsokontroller (`AddHealthChecks`, `MapHealthChecks`) | Finns i ASP.NET Core. Fas 1 har ingen databaskoppling, så bara liveness. | AspNetCore.HealthChecks.NpgSql: läggs till i Fas 2 när API:t pratar med databasen. |
-| Tester: `xunit.v3`, `xunit.runner.visualstudio`, `Microsoft.NET.Test.Sdk`, `Microsoft.AspNetCore.Mvc.Testing` | Specen kräver xUnit. `WebApplicationFactory` testar API:t i minnet utan nätverk eller databas. | Testcontainers i Fas 1: ingen databas används ännu. Kommer i Fas 2. |
-| Kodstil api: `dotnet format` + `TreatWarningsAsErrors=true` | Ingår i SDK:n. | StyleCop, andra analyspaket. |
+| Tester: `xunit.v3.mtp-off`, `xunit.runner.visualstudio`, `Microsoft.NET.Test.Sdk`, `Microsoft.AspNetCore.Mvc.Testing` | Specen kräver xUnit. `xunit.v3.mtp-off` är senaste xUnit v3 utan Microsoft.Testing.Platform v2, så att `dotnet test` (K6) körs i VSTest-läge (D37). `WebApplicationFactory` testar API:t i minnet utan nätverk eller databas. | `xunit.v3` (drar in MTP v2, och `dotnet test` vägrar köra, D37). `xunit.v3` 3.2.2 (äldre major). `global.json` med `test.runner` = `Microsoft.Testing.Platform` (oprovad). Testcontainers i Fas 1: ingen databas används ännu. Kommer i Fas 2. |
+| Kodstil api: `dotnet format` + `TreatWarningsAsErrors=true`, regler i `api/.editorconfig` (5.2) | Ingår i SDK:n. `.editorconfig` sätter LF, så att `dotnet format` och `.gitattributes` kräver samma radslut (D38). | StyleCop, andra analyspaket. |
 | Docker-avbildningar `mcr.microsoft.com/dotnet/sdk:10.0`, `mcr.microsoft.com/dotnet/aspnet:10.0`, `postgres:17-alpine` | Officiella avbildningar. Postgres 17 har den välkända datakatalogen `/var/lib/postgresql/data`; 18 ändrade volymsökvägen. | `postgres:18`, `latest`-taggar. |
 | Node 24 (`web/.nvmrc` = `24`), npm 11, `package-lock.json` | Verifierat lokalt (v24.19.0, npm 11.17.0). Lockfilen låser alla exakta versioner; CI kör `npm ci`. | yarn, pnpm. |
 | React (≥ 19) + TypeScript + Vite, `@vitejs/plugin-react` | Specen. React 19 kan rendera `<title>` i komponenter, så ingen helmet-modul behövs. | Next.js, CRA. |
@@ -644,6 +644,38 @@ Serilog i `appsettings.json`: `MinimumLevel.Default` = `Information`,
 `ImplicitUsings=enable`, `TreatWarningsAsErrors=true`,
 `RestorePackagesWithLockFile=true`, `ManagePackageVersionsCentrally` står i
 `Directory.Packages.props`.
+
+**Testpaket.** `Grannbo.Api.Tests` refererar `xunit.v3.mtp-off`, **inte**
+`xunit.v3`, plus `xunit.runner.visualstudio`, `Microsoft.NET.Test.Sdk` och
+`Microsoft.AspNetCore.Mvc.Testing`. `global.json` får ingen `test`-sektion, och
+K6 är oförändrat. Skäl i D37.
+
+**`api/.editorconfig`**, hela innehållet ordagrant:
+
+```
+root = true
+
+[*]
+end_of_line = lf
+charset = utf-8
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+
+[*.cs]
+indent_size = 4
+csharp_style_namespace_declarations = file_scoped:warning
+csharp_using_directive_placement = outside_namespace:warning
+csharp_style_var_when_type_is_apparent = true:suggestion
+dotnet_sort_system_directives_first = true
+
+[*.{json,csproj,props,slnx,xml}]
+indent_size = 2
+```
+
+Reglerna med `:warning` kontrolleras av `dotnet format` (K5), inte av bygget
+(`EnforceCodeStyleInBuild` sätts inte). Ger K5 fel på befintlig kod efter att
+filen lagts till körs `dotnet format Grannbo.slnx` en gång, och K5 körs om.
 
 **Projektreferenser (de enda tillåtna):**
 
@@ -1511,7 +1543,10 @@ fil står under "Använder".
 |----|----------|--------|
 | K1 | `dotnet --list-sdks` | Körd av koordinatorn 2026-11-20 (inte av arkitekten, som saknar skal i det här steget). Utdata ordagrant i blocket under tabellen. .NET 10-SDK finns (A8). |
 | K2 | `node -v`, `npm -v` | Körd av koordinatorn 2026-11-20: `v24.19.0`, `11.17.0`. |
-| K3-K6 | api-kommandona | Okörda. Körs i 1.3. |
+| K3 | `dotnet restore Grannbo.slnx --locked-mode` | Körd av byggaren 2026-11-20 i 1.3: EXIT=0, även med `--locked-mode`. Låsta versioner: Serilog.AspNetCore 11.0.0, xunit.runner.visualstudio 4.0.1, Microsoft.NET.Test.Sdk 18.12.0, Microsoft.AspNetCore.Mvc.Testing 10.0.15 (11.0.0 finns bara för net11.0). Testpaketet `xunit.v3.mtp-off` 4.0.3 (D37). |
+| K4 | `dotnet build Grannbo.slnx -c Release --no-restore` | Körd av byggaren 2026-11-20 i 1.3: EXIT=0, 0 varningar. |
+| K5 | `dotnet format Grannbo.slnx --verify-no-changes --no-restore` | Körd av byggaren 2026-11-20 i 1.3: EXIT=0. `.slnx` gick att läsa. |
+| K6 | `dotnet test Grannbo.slnx -c Release --no-build` | Med `xunit.v3` 4.0.3 gav K6 EXIT=1 (felet i D37). Med `xunit.v3.mtp-off` 4.0.3 i en kopia gav den 13/13 godkända och EXIT=0. Körd av byggaren 2026-11-20 i 1.3 med `xunit.v3.mtp-off` 4.0.3 (D37): Passed 13, Failed 0, EXIT=0 (commit 2c7b95c). |
 | K7-K11 | webbkommandona | Okörda. Körs i 1.5 (K7-K11) och i varje senare webbuppgift. |
 | K12 | `npm run test:e2e` | Okörd. Körs i 1.22. |
 | K13 | `npm run lighthouse` | Okörd. Körs i 1.23. |
@@ -1523,7 +1558,6 @@ fil står under "Använder".
 | K22 | `npm run media:placeholders` | Okörd. Körs i 1.12 (hero-filerna), 1.14 (lokalbilderna) och 1.21 (`og-image.jpg`). |
 | K23 | Kontrastkvoter för basfärgerna, WCAG-formeln i Node | Uträknade av koordinatorn 2026-11-20: `#E38B5C`/`#F4F6F9` = 2.39; `#E38B5C`/`#1B2A41` = 5.58; `#9A4A28`/`#F4F6F9` = 5.73; `#1B2A41`/`#F4F6F9` = 13.34; `#475569`/`#F4F6F9` = 7.00. Avrundade till två decimaler; ingen av dem ligger nära en gräns. Testet i 1.7 räknar om dem oavrundade (par X1, T19, T8, T1, T3). |
 | - | Docker | Koordinatorn 2026-11-20: inte installerat än. Användaren installerar Docker Desktop själv. Se K14-K17. |
-| - | `dotnet format` med `.slnx` | Risk: om K5 inte kan läsa `.slnx` lämnas det tillbaka till arkitekten (byggaren byter inte format själv). |
 | - | `git remote -v` | Koordinatorn 2026-11-20: remote `origin` finns och pekar på ett tomt GitHub-repo (adressen står bara i `docs/decisions.md` F4). `gh` saknas. |
 
 K1, utdata ordagrant (körd av koordinatorn 2026-11-20):
@@ -1545,8 +1579,9 @@ Kvar är förutsättningar som inte är öppna frågor:
   mot F7, som bara gällde ffmpeg. Docker behövs för K14-K17 i 1.4. Finns Docker
   inte när 1.3 är klar blir 1.4 ett eget paket, P2b, och P3 får starta under
   tiden (`docs/plan.md`, "Arbetsgång").
-- Kodarna i `ffmpeg-static` (K18) och `dotnet format` med `.slnx` (K5) är
-  okontrollerade. Fallerar något av dem lämnas det tillbaka till arkitekten.
+- Kodarna i `ffmpeg-static` (K18) är okontrollerade. Fallerar kontrollen lämnas
+  det tillbaka till arkitekten. (Frågan om `dotnet format` och `.slnx` stängdes
+  i 1.3, se K5.)
 
 ## Beslutslogg
 
@@ -1694,3 +1729,20 @@ Kvar är förutsättningar som inte är öppna frågor:
 - D36: Docker installeras av användaren (A12). 1.4 bockas inte av förrän
   K14-K16 har körts; finns Docker inte när 1.3 är klar blir 1.4 paketet P2b
   enligt planen. (påverkat av lärdom: nej)
+- D37: Testprojektet använder `xunit.v3.mtp-off` 4.0.3 i stället för
+  `xunit.v3` (koordinatorns beslut 2026-11-20, väg a). Skäl: `xunit.v3` 4.0.3
+  drar in Microsoft.Testing.Platform v2, och då vägrade .NET 10-SDK:n köra K6
+  med felet "Testing with VSTest target is no longer supported by
+  Microsoft.Testing.Platform on .NET 10 SDK and later" (EXIT=1, körd av
+  byggaren 2026-11-20 i 1.3). Med `xunit.v3.mtp-off` 4.0.3 gav K6 13/13
+  godkända och EXIT=0 i en kopia. Väg a behåller senaste xUnit och kräver
+  ingen ändring av K6 eller `global.json`. Bortvalt: `xunit.v3` 3.2.2 (gav
+  också 13/13 och EXIT=0, men är en äldre version) och
+  `global.json` med `test.runner` = `Microsoft.Testing.Platform` (oprovad).
+  (påverkat av lärdom: ja, LARDOMAR.md: "först när det har körts i den här
+  miljön med exit 0")
+- D38: `api/.editorconfig` har innehållet i 5.2 med `end_of_line = lf`. Utan
+  filen krävde `dotnet format` CRLF på Windows, medan `.gitattributes` kräver
+  LF (byggarens fynd i 1.3). (påverkat av lärdom: ja, LARDOMAR.md: "Varje
+  konfigurationsfil i mappstrukturen har sitt innehåll angivet i
+  ARKITEKTUR.md.")
