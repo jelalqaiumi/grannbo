@@ -272,3 +272,8 @@ Bindande från start: mönster som gått fel flera gånger tidigare, översatta 
 **Vad gick fel:** `docs/plan.md` ("Arbetsgång") kräver formen `typ(område): beskrivning`, men commit d459b28 heter `chore: monorepo-skelett` och 6b6ecde `chore: .gitignore, .gitattributes och .env.example`, alltså utan område (samma sak gällde P0:s commit `docs: ...`).
 **Varför:** Byggaren skrev rubriken efter vana och jämförde den aldrig med formen i planen före commit.
 **Regel framåt:** Före varje commit: kontrollera rubriken med `git log -1 --format=%s | grep -E '^[a-z]+\([a-z0-9-]+\): .+'` och kräv exit 0; område är katalogen eller delen som ändras (`repo`, `api`, `web`, `docs`, `ci`).
+
+### 2026-11-20 — web (P3): testfiler i `web/tests/` typkontrolleras inte av något kommando
+**Vad gick fel:** `tsconfig.app.json` har `"include": ["src"]` och `tsconfig.node.json` bara `vite.config.ts`, så en fil `web/tests/typeerr.test.ts` med `const n: number = 'text';` gav EXIT=0 i `npm run build` (K10), `npm run lint` (K8) och `npm test` (K11), lokalt och därmed i CI, fast ARKITEKTUR avsnitt 1 lägger repo-nivåtesterna där från 1.7.
+**Varför:** tsconfig-filerna togs oförändrade från create-vite-mallen, som bara känner till `src/`, och ingen jämförde `include` med katalogerna i mappstrukturen; Vitest tar bort typerna utan att kontrollera dem.
+**Regel framåt:** Varje katalog i ARKITEKTUR avsnitt 1 som innehåller `.ts`/`.tsx` (enligt avsnitt 1: `src/`, `tests/`, `e2e/` samt `vite.config.ts` och `playwright.config.ts` i `web/`) ska ingå i `include` i exakt en tsconfig som `tsc -b` bygger; bevisa det per katalog genom att lägga en fil med ett typfel där i en kopia och kräva att K10 ger EXIT≠0.
